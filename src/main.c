@@ -551,6 +551,7 @@ int main ( int argc, char *argv[] )
         lua_register ( _L, "check_timeout", lua_check_timeout );
 
         lua_register ( _L, "random_string", lua_f_random_string );
+        lua_register ( _L, "file_exists", lua_f_file_exists );
 
         lua_register ( _L, "cache_set", lua_f_cache_set );
         lua_register ( _L, "cache_get", lua_f_cache_get );

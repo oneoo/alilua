@@ -178,19 +178,6 @@ end
 function session()
 end
 
-function file_exists(f)
-	local r = FileExistsCache[f]
-	if r == nil then
-		r = io.open(f, 'r')
-		if r then
-			io.close(r)
-			r = true
-		else
-			r = false
-		end
-		FileExistsCache[f] = r
-	end
-	return r end
 local env = {io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
 			httpclient=httpclient,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,

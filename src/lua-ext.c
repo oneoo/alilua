@@ -225,3 +225,22 @@ int lua_f_random_string ( lua_State *L )
 
     return 1;
 }
+
+int lua_f_file_exists ( lua_State *L )
+{
+    if ( !lua_isstring ( L, 1 ) ) {
+        lua_pushnil ( L );
+        lua_pushstring ( L, "Need a file path!" );
+        return 2;
+    }
+
+    const char *fname = lua_tostring ( L, 1 );
+    int fd = open ( fname, O_RDONLY );
+    lua_pushboolean ( L, fd > 0 );
+
+    if ( fd >= 0 ) {
+        close ( fd );
+    }
+
+    return 1;
+}

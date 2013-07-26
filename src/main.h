@@ -60,6 +60,7 @@ int lua_f_cache_set ( lua_State *L );
 int lua_f_cache_get ( lua_State *L );
 int lua_f_cache_del ( lua_State *L );
 int lua_f_random_string ( lua_State *L );
+int lua_f_file_exists ( lua_State *L );
 
 char *_process_chdir;
 
