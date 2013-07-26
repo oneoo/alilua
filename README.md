@@ -1,4 +1,4 @@
-alilua-serv
+alilua
 ======
 A epoll based web server, inculded lua/coevent support (Only support Linux platform)
 
