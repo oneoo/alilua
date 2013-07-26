@@ -1,0 +1,146 @@
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <sys/uio.h>
+#include <sys/sendfile.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <inttypes.h>
+#include <zlib.h>
+
+#include "config.h"
+#include "../common/process.h"
+#include "../se/se.h"
+
+#define free(p) do { if (p) { free(p); p = NULL; } } while (0)
+#define close(fd) do { if (fd >= 0) { close(fd); fd = -1; } } while (0)
+//printf("closeat %s:%d\n",__FILE__,__LINE__);
+
+#ifndef _NETWORK_H
+#define _NETWORK_H
+
+#define STEP_READ 1
+#define STEP_JOIN_PROCESS 2
+#define STEP_PROCESS 3
+#define STEP_SEND 4
+#define STEP_FINISH 5
+#define STEP_WAIT 6
+#define STEP_ASYNC 7
+#define STEP_ERROR 8
+
+shm_t *_shm_epoll_status;
+
+typedef struct _epdata_t {
+    void *se_ptr;
+    void *timeout_ptr;
+    uint8_t status;
+
+    int fd;
+    char *headers;
+    int header_len;
+    char *contents;
+    int content_length;
+
+    char *method;
+    char *uri;
+    char *host;
+    char *query;
+    char *http_ver;
+    char *referer;
+    char *user_agent;
+    long  start_time;
+
+    int data_len;
+    int buf_size;
+    int _header_length;
+
+    int keepalive;
+    int process_timeout;
+
+    time_t stime;
+
+    int response_sendfile_fd;
+
+#define _MAX_IOV_COUNT 243
+    struct iovec iov[_MAX_IOV_COUNT];
+    int response_header_length;
+    int iov_buf_count;
+    int response_content_length;
+    off_t response_buf_sended;
+
+
+    struct _epdata_t *job_next;
+    struct _epdata_t *job_uper;
+    struct in_addr client_addr;
+    char z[4]; /// align size to 4096
+} epdata_t;
+
+char *url_encode ( char const *s, int raw, size_t len, size_t *new_length );
+char *url_decode ( char *str, int raw, size_t *new_length );
+char *stristr ( const char *str, const char *pat, int length );
+int network_bind ( char *addr, int port );
+int network_raw_send ( int client_fd, const char *contents, int length );
+char *network_raw_read ( int cfd, int *datas_len );
+int network_connect ( const char *ser, int port );
+void network_send_error ( epdata_t *epd, int code, const char *msg );
+void network_send_status ( epdata_t *epd );
+static void network_end_process ( epdata_t *epd );
+int setnonblocking ( int fd );
+void sync_epoll_status();
+
+static int network_be_read ( se_ptr_t *ptr );
+static int network_be_write ( se_ptr_t *ptr );
+
+int network_send_header ( epdata_t *epd, const char *header );
+int network_send ( epdata_t *epd, const char *data, int _len );
+int network_sendfile ( epdata_t *epd, const char *path );
+void network_be_end ( epdata_t *epd );
+
+static int is_daemon = 0;
+
+static int epoll_fd = -1;
+static int has_error_for_exit = 0;
+
+typedef struct {
+    uint64_t connect_counts;
+    uint64_t success_counts;
+    uint64_t process_counts;
+    int waiting_counts;
+    int reading_counts;
+    int sending_counts;
+    int jioning_counts;
+    int active_counts;
+
+    int sec_process_counts[5];
+    time_t ptime;
+} epoll_status_t;
+
+epoll_status_t epoll_status;
+epoll_status_t *shm_epoll_status;
+
+static const char *DAYS_OF_WEEK[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+static const char *MONTHS_OF_YEAR[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+time_t now;
+static struct tm now_tm;
+char now_date[100];
+
+static void free_epd ( epdata_t *epd );
+static void free_epd_request ( epdata_t *epd );
+void close_client ( epdata_t *epd );
+static void *fd_epoll_checker ( void *data );
+static int ( *process_func ) ( epdata_t *epd, int thread_at );
+void network_worker ( void *_process_func, int work_thread_count );
+
+static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
+int gzip_iov ( int mode, struct iovec *iov, int iov_count, int *_diov_count );
+
+void init_mime_types();
+const char *get_mime_type ( const char *filename );
+#endif /// _NETWORK_H

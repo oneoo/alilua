@@ -17,7 +17,7 @@ int lua_f_fastlz_compress(lua_State *L){
 	
 	size_t vlen = 0;
 	const char *value = lua_tolstring(L, 1, &vlen);
-	if(vlen < 1 || vlen > 10*1024*1024){ /// Max 10Mb !!!
+	if(vlen < 1 || vlen > 1*1024*1024){ /// Max 1Mb !!!
 		lua_pushnil(L);
 		return 1;
 	}
@@ -39,7 +39,7 @@ int lua_f_fastlz_compress(lua_State *L){
 
 	if(dst){
 		lua_pushlstring(L, dst, dlen+sizeof(unsigned int));
-		if(dst != &temp_buf)
+		if(dst != (char*)&temp_buf)
 			free(dst);
 
 		return 1;
@@ -66,7 +66,13 @@ int lua_f_fastlz_decompress(lua_State *L){
 	memcpy(&value_len, value, sizeof(unsigned int));
 	value_len = ntohl(value_len);
 
-	char *dst = &temp_buf;
+	if(value_len > 1024*1024+20){
+		lua_pushnil(L);
+		lua_pushstring(L, "not enough memory!");
+		return 2;
+	}
+	
+	char *dst = (char*)&temp_buf;
 	if(value_len+2 > 4096)
 		dst = (unsigned char *)large_malloc(value_len+2);
 	
@@ -79,7 +85,7 @@ int lua_f_fastlz_decompress(lua_State *L){
 
 	if(dst){
 		lua_pushlstring(L, dst, value_len);
-		if(dst != &temp_buf)
+		if(dst != (char*)&temp_buf)
 			free(dst);
 
 		return 1;

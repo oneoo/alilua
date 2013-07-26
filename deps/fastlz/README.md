@@ -10,7 +10,9 @@ Version: 1.0
 Install
 --------
 $tar zxf lua-fastlz*.tar.gz
+
 $cd lua-fastlz*
+
 $sudo make install clean
 
 Using lua-fastlz
