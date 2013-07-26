@@ -5,8 +5,11 @@ A epoll based web server, inculded lua/coevent support (Only support Linux platf
 Install
 --------
 $tar zxf alilua-*.tar.gz
+
 $cd alilua-*
+
 $sudo make install clean
+
 
 Using LuaJit
 --------

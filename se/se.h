@@ -8,7 +8,7 @@
 #ifndef _SE_H
 #define _SE_H
 
-#define SE_SIZE 1024
+#define SE_SIZE 4096
 
 typedef struct {
     int epoll_fd;

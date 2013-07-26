@@ -42,20 +42,10 @@ int network_bind ( char *addr, int port )
         exit ( 1 );
     }
 
-    int reuseaddr = 1, nodelay = 1, defer_accept_timeout = 1;
+    int reuseaddr = 1, nodelay = 1;
     setsockopt ( fd, SOL_SOCKET, SO_REUSEADDR, ( const void * ) &reuseaddr,
                  sizeof ( int ) );
     setsockopt ( fd, IPPROTO_TCP, TCP_NODELAY, ( const void * ) &nodelay, sizeof ( int ) );
-    //setsockopt ( fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &defer_accept_timeout, sizeof ( int ) );
-    struct linger ln;
-    ln.l_onoff = 1;
-    ln.l_linger = 3;
-
-    if ( setsockopt ( fd, SOL_SOCKET, SO_LINGER, ( void * ) &ln,
-                      sizeof ( struct linger ) ) < 0 ) {
-        printf ( "setlinger error\n" );
-        exit ( 1 );
-    }
 
     memset ( &sin, 0, sizeof ( struct sockaddr_in ) );
     sin.sin_family = AF_INET;

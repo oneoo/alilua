@@ -11,7 +11,7 @@
 
 /// epoll config
 #define EP_D_BUF_SIZE 4096 /// read block size
-#define EPD_POOL_SIZE 4096
+#define EPD_POOL_SIZE 4096*128
 #define EPOLL_WAITOUT 10
 
 /// yac config

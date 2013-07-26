@@ -315,7 +315,8 @@ int new_thread ( void *func )
 
     pthread_attr_setdetachstate ( &attr, PTHREAD_CREATE_DETACHED );
 
-    if ( pthread_create ( &thread, &attr, func, NULL ) ) {
+    int i = 0;
+    if ( pthread_create ( &thread, &attr, func, &i ) ) {
         return 0;
     }
 

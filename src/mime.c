@@ -14,7 +14,7 @@ static void add_mime_type ( char *ext, char *type )
 {
     int ext_len = strlen ( ext );
     int type_len = strlen ( type );
-    mime_t *n = malloc ( sizeof ( mime_t ) + ext_len + 1 + type_len );
+    mime_t *n = malloc ( sizeof ( mime_t ) + ext_len + 2 + type_len );
 
     n->next = NULL;
     n->ext = ( char * ) n + sizeof ( mime_t );
@@ -23,7 +23,8 @@ static void add_mime_type ( char *ext, char *type )
     memcpy ( n->ext, ext, ext_len );
     memcpy ( n->type, type, type_len );
 
-    n->ext[ext_len] = n->type[type_len] = '\0';
+    n->ext[ext_len] = '\0';
+    n->type[type_len] = '\0';
 
     int k = tolower ( ext[0] ) - 'a';
 

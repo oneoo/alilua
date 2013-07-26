@@ -147,6 +147,8 @@ void free_epd_request ( epdata_t *epd )  /// for keepalive
     epd->header_len = 0;
     epd->_header_length = 0;
     epd->content_length = -1;
+    epd->process_timeout = 0;
+    epd->iov_buf_count = 0;
 
     se_be_read ( epd->se_ptr, network_be_read );
 }
@@ -157,15 +159,15 @@ void close_client ( epdata_t *epd )
         return;
     }
 
-    if ( epd->fd > -1 ) {
-        epoll_status.active_counts--;
-    }
-
-    close ( epd->fd );
-
     se_delete ( epd->se_ptr );
     delete_timeout ( epd->timeout_ptr );
     epd->timeout_ptr = NULL;
+
+    if ( epd->fd > -1 ) {
+        epoll_status.active_counts--;
+        close ( epd->fd );
+        epd->fd = -1;
+    }
 
     free_epd ( epd );
 }
@@ -446,6 +448,7 @@ static int network_be_read ( se_ptr_t *ptr )
             } else {
                 network_send_error ( epd, 503, "buf error!" );
                 close_client ( epd );
+                epd = NULL;
                 epoll_status.reading_counts--;
                 break;
             }
@@ -531,6 +534,7 @@ static int network_be_read ( se_ptr_t *ptr )
 
                 network_send_error ( epd, 411, "" );
                 close_client ( epd );
+                epd = NULL;
                 epoll_status.reading_counts--;
 
                 break;
@@ -637,6 +641,7 @@ static int network_be_read ( se_ptr_t *ptr )
     if ( epd && n < 0 && errno != EAGAIN && errno != EWOULDBLOCK ) {
         //printf("error fd %d (%d) %s\n", epd->fd, errno, strerror(errno));
         close_client ( epd );
+        epd = NULL;
         return 0;
     }
 
@@ -736,7 +741,7 @@ static int network_be_accept ( se_ptr_t *ptr )
     struct sockaddr_in remote_addr;
     int addr_len = 0;
 
-    while ( acc_trys++ < 10 ) {
+    while ( acc_trys++ < 2 ) {
         client_fd = accept ( server_fd, ( struct sockaddr * ) &remote_addr, &addr_len );
 
         if ( client_fd < 0 && ( errno == EAGAIN || errno == EWOULDBLOCK ) ) {
@@ -767,6 +772,8 @@ static int network_be_accept ( se_ptr_t *ptr )
         epd->content_length = -1;
         epd->_header_length = 0;
         epd->keepalive = -1;
+        epd->process_timeout = 0;
+        epd->iov_buf_count = 0;
 
         epd->se_ptr = se_add ( epoll_fd, client_fd, epd );
         epd->timeout_ptr = add_timeout ( epd, STEP_WAIT_TIMEOUT, timeout_handle );
@@ -775,6 +782,8 @@ static int network_be_accept ( se_ptr_t *ptr )
 
         epoll_status.active_counts++;
         epoll_status.connect_counts++;
+
+        acc_trys = 0;
     }
 }
 

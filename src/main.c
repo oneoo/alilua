@@ -80,7 +80,7 @@ static void master_main()
     }
 }
 
-static int worker_process ( epdata_t *epd, int thread_at )
+int worker_process ( epdata_t *epd, int thread_at )
 {
     //printf("worker_process\n");
     working_at_fd = epd->fd;

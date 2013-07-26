@@ -25,7 +25,6 @@ int network_sendfile ( epdata_t *epd, const char *path )
 
     epd->response_content_length = st.st_size;
     epd->response_buf_sended = 0;
-    epd->iov_buf_count = 0;
 
     /// clear send bufs;!!!
     int i = 0;
