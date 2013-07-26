@@ -28,7 +28,7 @@ int gzip_iov ( int mode, struct iovec *iov, int iov_count, int *_diov_count )
     int i = 1, dlen = 0, ilen = 0, diov_count = 1, zed = 0, cpd = 0;
     unsigned crc = 0L;
 
-    int flush;
+    int flush = 0;
 
     do {
         if ( i >= _MAX_IOV_COUNT || !iov[i].iov_base ) {
@@ -45,8 +45,8 @@ int gzip_iov ( int mode, struct iovec *iov, int iov_count, int *_diov_count )
         stream.avail_in = iov[i].iov_len;
         iov[i].iov_len = 0;
 
-        flush = ( i + 1 >= _MAX_IOV_COUNT || iov[i + 1].iov_base == NULL
-                  || i == iov_count ) ? Z_FINISH : Z_NO_FLUSH;
+        flush = ( i == iov_count || i + 1 >= _MAX_IOV_COUNT || iov[i + 1].iov_base == NULL
+                ) ? Z_FINISH : Z_NO_FLUSH;
         i++;
 
         /* run deflate() on input until output buffer not full, finish

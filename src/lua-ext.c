@@ -234,13 +234,15 @@ int lua_f_file_exists ( lua_State *L )
         return 2;
     }
 
-    const char *fname = lua_tostring ( L, 1 );
-    int fd = open ( fname, O_RDONLY );
-    lua_pushboolean ( L, fd > 0 );
+    struct stat st;
 
-    if ( fd >= 0 ) {
-        close ( fd );
+    const char *fname = lua_tostring ( L, 1 );
+
+    if ( stat ( fname, &st ) == -1 ) {
+        lua_pushboolean ( L, 0 );
     }
+
+    lua_pushboolean ( L, 1 );
 
     return 1;
 }

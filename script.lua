@@ -133,7 +133,7 @@ setmetatable(host_route, {
 		for k,v in pairs(t) do
 			if _k == k then return v end
 		end
-        for k,v in pairs(t) do
+		for k,v in pairs(t) do
 			if _k:match(k) then return v end
 		end
 		return './alilua-index.lua'
@@ -246,17 +246,21 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	--box.loadfile = function(f) local r = loadfile(f) setfenv(r, box) return r end
 	box.loadfile = function(f)
 		local r = CodeCache[f]
+		local err
 		if not r then
 			r = cache_get('__cache_'..f)
 			if not r then
-				r = loadfile(f)
+				r, err = loadfile(f)
 				if r then cache_set('__cache_'..f, string.dump(r)) end
 			else
-				r = loadstring(r)
+				r, err = loadstring(r)
 			end
 			CodeCache[f] = r
-		end setfenv(r, box) return r end
-	box.dofile = function(f) local r,e = box.loadfile(f) setfenv(r, box) r() end
+		end
+		if r then setfenv(r, box) end
+		return r, err
+	end
+	box.dofile = function(f) local r,e = box.loadfile(f) if r then setfenv(r, box) return r() else error(e) end end
 	
 	box.__fun_hooks = {}
 	box.__hooked = {}

@@ -345,7 +345,7 @@ shm_t *shm_malloc ( size_t size )
     union semun arg;
 
     /* create and init a shared memory segment for the counter */
-    oflag = 0644 | IPC_CREAT;
+    oflag = 0666 | IPC_CREAT;
 
     if ( ( shm_id = shmget ( ftok ( environ[0], shm_ftok_id ), size, oflag ) ) < 0 ) {
         perror ( "shmget" );
@@ -360,7 +360,7 @@ shm_t *shm_malloc ( size_t size )
     }
 
     /* create and init the semaphore that will protect the counter */
-    oflag = 0644 | IPC_CREAT;
+    oflag = 0666 | IPC_CREAT;
 
     if ( ( sem_id = semget ( ftok ( environ[0], shm_ftok_id ), 1, oflag ) ) < 0 ) {
         perror ( "semget1" );
