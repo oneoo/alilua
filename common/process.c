@@ -83,7 +83,7 @@ void setProcTitle ( const char *title, int is_master )
     }
 }
 
-void initProcTitle ( int argc, char **argv )
+char *initProcTitle ( int argc, char **argv )
 {
     _argc = argc;
     _argv = argv;
@@ -120,6 +120,8 @@ void initProcTitle ( int argc, char **argv )
     for ( i = 0; environ[i]; ++i ) {
         process_char_last += strlen ( environ[i] ) + 1;
     }
+    
+    return process_chdir;
 }
 
 static int _signal_handler = 0;

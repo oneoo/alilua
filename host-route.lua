@@ -1,4 +1,4 @@
-host_route['^.*$'] = '/var/alilua.com/index.lua'
+--host_route['^.*$'] = '/var/www/a.com/index.lua'
 --host_route['b.com'] = '/var/www/b.com/index.lua'
 
 function process(headers, _GET, _COOKIE, _POST)

@@ -466,7 +466,7 @@ int main ( int argc, char *argv[] )
     lua_close ( L );
 
     /// 初始化进程命令行信息
-    initProcTitle ( argc, argv );
+    char *cwd = initProcTitle ( argc, argv );
 
     if ( getarg ( "help" ) ) {
         printf ( "This is the aLiLua Web Server.  Usage:\n"
@@ -564,6 +564,9 @@ int main ( int argc, char *argv[] )
         luaopen_crypto ( _L );
 
         lua_pop ( _L, 1 );
+        
+        sprintf(tbuf_4096, "package.path = '%s/lua-libs/?.lua;' .. package.path package.cpath = '%s/lua-libs/?.so;' .. package.cpath", cwd, cwd);
+        luaL_dostring(_L, tbuf_4096);
 
         /* Load the file containing the script we are going to run */
         status = luaL_loadfile ( _L, "script.lua" );

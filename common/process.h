@@ -28,7 +28,7 @@ int _argc;
 
 void active_cpu ( uint32_t active_cpu );
 void setProcTitle ( const char *title, int is_master );
-void initProcTitle ( int argc, char **argv );
+char *initProcTitle ( int argc, char **argv );
 int checkProcessForExit();
 void signal_handler ( int sig );
 void daemonize();
