@@ -13,7 +13,11 @@ $sudo make install clean
 
 Using LuaJit
 --------
-$sudo make install clean LUA=-lluajit-5.1
+$sudo make install LUAJIT=/usr/local/lib
+
+Setting Prefix
+--------
+$sudo make install PREFIX=/usr/local/alilua
 
 Start
 ======
@@ -23,7 +27,7 @@ $sudo alilua --daemon --bind=8080
 Config
 ======
 
-$vi /usr/local/sbin/host-route.lua
+$vi /usr/local/alilua/host-route.lua
 
 Limits
 ======
