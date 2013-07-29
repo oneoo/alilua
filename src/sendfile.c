@@ -12,14 +12,14 @@ int network_sendfile ( epdata_t *epd, const char *path )
 
     if ( ( epd->response_sendfile_fd = open ( path, O_RDONLY ) ) < 0 ) {
         epd->response_sendfile_fd = -2;
-        printf ( "Can't open 'src' file\n" );
+        //printf ( "Can't open '%s' file\n", path );
         return 0;
     }
 
     if ( fstat ( epd->response_sendfile_fd, &st ) == -1 ) {
         close ( epd->response_sendfile_fd );
         epd->response_sendfile_fd = -2;
-        printf ( "Can't stat 'src' file\n" );
+        //printf ( "Can't stat '%s' file\n", path );
         return 0;
     }
 

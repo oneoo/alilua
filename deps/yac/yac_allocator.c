@@ -49,7 +49,9 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
             }
             return 0;
         }
-    }
+    } else {
+		return 0;
+	}
 
 	segment_size = he->segment_type_size();
 	segments_array_size = (segments_num - 1) * segment_size;
@@ -59,7 +61,7 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 
     YAC_SG(segments_num) 		= segments_num - 1;
 	YAC_SG(segments_num_mask) 	= YAC_SG(segments_num) - 1;
-    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals)));
+    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals) + segment_size - sizeof(yac_shared_segment)));
 
 	p = (char *)YAC_SG(segments) + (sizeof(void *) * YAC_SG(segments_num));
     memcpy(p, (char *)segments + segment_size, segments_array_size);
@@ -117,7 +119,7 @@ do_alloc:
     } else { 
 		int i, max;
 		max = (YAC_SG(segments_num) > 4)? 4 : YAC_SG(segments_num);
-		for (i = 0; i < max; i++) {
+		for (i = 1; i < max; i++) {
 			segment = YAC_SG(segments)[(current + i) & YAC_SG(segments_num_mask)];
 			seg_size = segment->size;
 			pos = segment->pos;
@@ -128,6 +130,7 @@ do_alloc:
 		}
 		segment->pos = 0;
 		pos = 0;
+		++YAC_SG(recycles);
 		goto do_alloc;
 	}
 }

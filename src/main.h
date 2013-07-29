@@ -23,8 +23,6 @@
 #ifndef _MAIN_H
 #define _MAIN_H
 
-#define version "0.99"
-
 #define large_malloc(s) (malloc(((int)(s/4096)+1)*4096))
 #define PRINTF(a,args...) if(1>0)fprintf( stdout, "%s:%d:"#a"\n", __FUNCTION__, __LINE__, ##args)
 #define LOGF(a,args...) if(LOG_FD)fprintf( LOG_FD, "%s:%d:"#a"\n", __FUNCTION__, __LINE__, ##args)
@@ -43,9 +41,6 @@
 #define cb_printf(fmt, ...) printf("%s" fmt "%s", A_C_B, ##__VA_ARGS__, A_C__)
 #define cm_printf(fmt, ...) printf("%s" fmt "%s", A_C_M, ##__VA_ARGS__, A_C__)
 #define cc_printf(fmt, ...) printf("%s" fmt "%s", A_C_C, ##__VA_ARGS__, A_C__)
-
-#define default_port 19827
-#define USE_KEEPALIVE 1
 
 char hostname[1024];
 

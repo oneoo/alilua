@@ -469,7 +469,7 @@ int main ( int argc, char *argv[] )
     char *cwd = initProcTitle ( argc, argv );
 
     if ( getarg ( "help" ) ) {
-        printf ( "This is the aLiLua Web Server.  Usage:\n"
+        printf ( "This is the aLiLua/%s Web Server.  Usage:\n"
                  "\n"
                  "    alilua [options]\n"
                  "\n"
@@ -477,10 +477,11 @@ int main ( int argc, char *argv[] )
                  "\n"
                  "  --bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80\n"
                  "  --daemon             process mode\n"
-                 "  --process=number     process count\n"
+                 "  --process=number     workers\n"
                  "  --log=file path      access log\n"
                  "  \n"
-                 "\n"
+                 "\n",
+                 version
                );
         exit ( 0 );
     }

@@ -1,6 +1,11 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+#define version "v0.21"
+#define default_port 19827
+
+#define USE_KEEPALIVE 1
+
 /// timeouts
 #define STEP_READ_TIMEOUT 30
 #define STEP_JOIN_PROCESS_TIMEOUT 30

@@ -32,4 +32,10 @@ $vi /usr/local/alilua/host-route.lua
 Limits
 ======
 
+Response header length < 3KB
+
 Response body length < 900KB
+
+Maillist
+======
+[https://groups.google.com/forum/?hl=en#!forum/alilua](https://groups.google.com/forum/?hl=en#!forum/alilua)
