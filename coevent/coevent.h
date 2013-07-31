@@ -18,6 +18,9 @@
 #include <zlib.h>
 #include <errno.h>
 #include <openssl/sha.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -74,18 +77,22 @@ typedef struct {
 } dns_cache_item_t;
 
 typedef struct {
-    uint8_t type;
     int fd;
+    uint8_t use_ssl;
+    uint8_t in_read_action;
+
+    SSL *ssl;
+    SSL_CTX *ctx;
     int status;
     void *ptr;
     lua_State *L;
     const u_char *send_buf;
-    u_char _send_buf[3872];// with size align / 60
+    u_char _send_buf[3857];// with size align / 60
     size_t send_buf_len;
     size_t send_buf_ed;
     u_char *send_buf_need_free;
 
-    int in_read_action;
+
     cosocket_link_buf_t *read_buf;
     cosocket_link_buf_t *last_buf;
     size_t total_buf_len;
@@ -125,7 +132,7 @@ typedef struct {
 #define NULL32 NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
 int lua_co_resume ( lua_State *L , int args );
 int cosocket_be_connected ( se_ptr_t *ptr );
-int coevent_setnonblocking ( int fd );
+int coevent_setblocking ( int fd, int blocking );
 int add_to_timeout_link ( cosocket_t *cok, int timeout );
 int del_in_timeout_link ( cosocket_t *cok );
 int lua_f_coroutine_resume_waiting ( lua_State *L );

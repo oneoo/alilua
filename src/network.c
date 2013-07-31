@@ -159,6 +159,13 @@ void close_client ( epdata_t *epd )
         return;
     }
 
+    if ( epd->status == STEP_READ ) {
+        epoll_status.reading_counts--;
+
+    } else if ( epd->status == STEP_SEND ) {
+        epoll_status.sending_counts--;
+    }
+    
     se_delete ( epd->se_ptr );
     delete_timeout ( epd->timeout_ptr );
     epd->timeout_ptr = NULL;

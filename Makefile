@@ -32,7 +32,7 @@ main.o:
 
 	cd lua-libs/LuaBitOp-1.0.2 && make && cp bit.so ../ && make clean;
 	cd lua-libs/lua-cjson-2.1.0 && make && cp cjson.so ../ && make clean;
-	cd lua-libs/lua-zlib && make linux && cp zlib.so ../ && make clean;
+	cd lua-libs/lzlib && make && cp zlib.so ../ && make clean;
 
 
 .PHONY : clean zip install noopt hardmode

@@ -127,6 +127,9 @@ int be_get_dns_result ( se_ptr_t *ptr )
 
     while ( ( len = recvfrom ( cok->dns_query_fd, pkt, 2048, 0, NULL, NULL ) ) > 0
             && len >= sizeof ( dns_query_header_t ) ) {
+        int dns_query_fd = cok->dns_query_fd;
+        close ( cok->dns_query_fd );
+        cok->dns_query_fd = -1;
         int fd = ptr->fd;
         se_delete ( ptr );
         close ( fd );
@@ -216,7 +219,7 @@ int be_get_dns_result ( se_ptr_t *ptr )
             add_dns_cache ( cok->dns_query_name, cok->addr.sin_addr, 0 );
 
             if ( cok->pool_size > 0 ) {
-                cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key );
+                cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key, cok );
             }
 
             int ret = -1;
@@ -238,7 +241,7 @@ int be_get_dns_result ( se_ptr_t *ptr )
 
                 cok->fd = sockfd;
 
-                if ( !coevent_setnonblocking ( cok->fd ) ) {
+                if ( !coevent_setblocking ( cok->fd , 0 ) ) {
                     close ( cok->fd );
                     lua_pushnil ( cok->L );
                     lua_pushstring ( cok->L, "Init socket error!2" );
@@ -278,6 +281,59 @@ int be_get_dns_result ( se_ptr_t *ptr )
 
             if ( ret == 0 || cok->reusedtimes > 0 ) {
                 ///////// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! connected /////
+
+                if ( cok->use_ssl && !cok->ssl ) {
+                    cok->ctx = SSL_CTX_new ( SSLv23_client_method() );
+
+                    if ( cok->ctx == NULL ) {
+                        se_delete ( cok->ptr );
+                        close ( cok->fd );
+
+                        cok->ptr = NULL;
+                        cok->fd = -1;
+                        cok->status = 0;
+
+                        lua_pushnil ( cok->L );
+                        lua_pushstring ( cok->L, "ssl error: no context" );
+                        return 2;
+                    }
+
+                    cok->ssl = SSL_new ( cok->ctx );
+
+                    if ( cok->ssl == NULL ) {
+                        se_delete ( cok->ptr );
+                        close ( cok->fd );
+
+                        cok->ptr = NULL;
+                        cok->fd = -1;
+                        cok->status = 0;
+
+                        SSL_CTX_free ( cok->ctx );
+
+                        lua_pushnil ( cok->L );
+                        lua_pushstring ( cok->L, "ssl error: no context" );
+                        return 2;
+                    }
+
+                    coevent_setblocking ( cok->fd, 1 );
+                    SSL_set_fd ( cok->ssl, cok->fd );
+
+                    if ( SSL_connect ( cok->ssl ) == -1 ) {
+                        se_delete ( cok->ptr );
+                        close ( cok->fd );
+
+                        cok->ptr = NULL;
+                        cok->fd = -1;
+                        cok->status = 0;
+
+                        lua_pushnil ( cok->L );
+                        lua_pushstring ( cok->L, "ssl connect error!" );
+                        return 2;
+                    }
+
+                    coevent_setblocking ( cok->fd, 0 );
+                }
+
                 lua_pushboolean ( cok->L, 1 );
                 cok->inuse = 0;
                 int ret = lua_resume ( cok->L, 1 );

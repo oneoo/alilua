@@ -39,7 +39,7 @@ int lua_co_resume ( lua_State *L , int nargs )
 int cosocket_be_connected ( se_ptr_t *ptr )
 {
     cosocket_t *cok = ptr->data;
-
+    cok->fd = ptr->fd;
     int result = 0;
     socklen_t result_len = sizeof ( result );
 
@@ -72,8 +72,62 @@ int cosocket_be_connected ( se_ptr_t *ptr )
         lua_co_resume ( cok->L, 2 );
 
     } else { /// connected
+        //printf("cosocket_be_connected %d\n", cok->fd);
         cok->status = 2;
         cok->in_read_action = 0;
+
+        if ( cok->use_ssl ) {
+            cok->ctx = SSL_CTX_new ( SSLv23_client_method() );
+
+            if ( cok->ctx == NULL ) {
+                se_delete ( cok->ptr );
+                close ( cok->fd );
+
+                cok->ptr = NULL;
+                cok->fd = -1;
+                cok->status = 0;
+
+                lua_pushnil ( cok->L );
+                lua_pushstring ( cok->L, "ssl error: no context" );
+                return 2;
+            }
+
+            cok->ssl = SSL_new ( cok->ctx );
+
+            if ( cok->ssl == NULL ) {
+                se_delete ( cok->ptr );
+                close ( cok->fd );
+
+                cok->ptr = NULL;
+                cok->fd = -1;
+                cok->status = 0;
+
+                SSL_CTX_free ( cok->ctx );
+
+                lua_pushnil ( cok->L );
+                lua_pushstring ( cok->L, "ssl error: no context" );
+                return 2;
+            }
+
+            coevent_setblocking ( cok->fd, 1 );
+            SSL_set_fd ( cok->ssl, cok->fd );
+
+            if ( SSL_connect ( cok->ssl ) == -1 ) {
+                se_delete ( cok->ptr );
+                close ( cok->fd );
+
+                cok->ptr = NULL;
+                cok->fd = -1;
+                cok->status = 0;
+
+                lua_pushnil ( cok->L );
+                lua_pushstring ( cok->L, "ssl connect error!" );
+                return 2;
+            }
+
+            coevent_setblocking ( cok->fd, 0 );
+        }
+
         se_be_pri ( cok->ptr, NULL );
         lua_pushboolean ( cok->L, 1 );
         cok->inuse = 0;
@@ -169,7 +223,7 @@ static int lua_co_connect ( lua_State *L )
                         cok->pool_key );
 
             if ( pool_counter->count >= cok->pool_size / process_count ) {
-                cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key );
+                cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key, cok );
 
                 if ( cok->ptr ) {
                     ( ( se_ptr_t * ) cok->ptr )->data = cok;
@@ -213,6 +267,59 @@ static int lua_co_connect ( lua_State *L )
             cok->status = 2;
 
             del_in_timeout_link ( cok );
+
+            if ( cok->use_ssl && !cok->ssl ) {
+                cok->ctx = SSL_CTX_new ( SSLv23_client_method() );
+
+                if ( cok->ctx == NULL ) {
+                    se_delete ( cok->ptr );
+                    close ( cok->fd );
+
+                    cok->ptr = NULL;
+                    cok->fd = -1;
+                    cok->status = 0;
+
+                    lua_pushnil ( cok->L );
+                    lua_pushstring ( cok->L, "ssl error: no context" );
+                    return 2;
+                }
+
+                cok->ssl = SSL_new ( cok->ctx );
+
+                if ( cok->ssl == NULL ) {
+                    se_delete ( cok->ptr );
+                    close ( cok->fd );
+
+                    cok->ptr = NULL;
+                    cok->fd = -1;
+                    cok->status = 0;
+
+                    SSL_CTX_free ( cok->ctx );
+
+                    lua_pushnil ( cok->L );
+                    lua_pushstring ( cok->L, "ssl error: no context" );
+                    return 2;
+                }
+
+                coevent_setblocking ( cok->fd, 1 );
+                SSL_set_fd ( cok->ssl, cok->fd );
+
+                if ( SSL_connect ( cok->ssl ) == -1 ) {
+                    se_delete ( cok->ptr );
+                    close ( cok->fd );
+
+                    cok->ptr = NULL;
+                    cok->fd = -1;
+                    cok->status = 0;
+
+                    lua_pushnil ( cok->L );
+                    lua_pushstring ( cok->L, "ssl connect error!" );
+                    return 2;
+                }
+
+                coevent_setblocking ( cok->fd, 0 );
+            }
+
             lua_pushboolean ( L, 1 );
             return 1;
             // is done
@@ -235,9 +342,17 @@ static int cosocket_be_write ( se_ptr_t *ptr )
     int n = 0, ret = 0;
     cok->in_read_action = 0;
 
-    while ( ( n = send ( cok->fd, cok->send_buf + cok->send_buf_ed,
-                         cok->send_buf_len - cok->send_buf_ed, MSG_DONTWAIT | MSG_NOSIGNAL ) ) > 0 ) {
-        cok->send_buf_ed += n;
+    if ( !cok->ssl ) {
+        while ( ( n = send ( cok->fd, cok->send_buf + cok->send_buf_ed,
+                             cok->send_buf_len - cok->send_buf_ed, MSG_DONTWAIT | MSG_NOSIGNAL ) ) > 0 ) {
+            cok->send_buf_ed += n;
+        }
+
+    } else {
+        while ( ( n = SSL_write ( cok->ssl, cok->send_buf + cok->send_buf_ed,
+                                  cok->send_buf_len - cok->send_buf_ed ) ) > 0 ) {
+            cok->send_buf_ed += n;
+        }
     }
 
     if ( cok->send_buf_ed == cok->send_buf_len || ( n < 0 && errno != EAGAIN
@@ -400,14 +515,28 @@ init_read_buf:
         cok->last_buf = nbuf;
     }
 
-    while ( ( n = recv ( cok->fd, cok->last_buf->buf + cok->last_buf->buf_len,
-                         cok->last_buf->buf_size - cok->last_buf->buf_len, 0 ) ) > 0 ) {
-        cok->last_buf->buf_len += n;
-        cok->total_buf_len += n;
+    if ( !cok->ssl ) {
+        while ( ( n = recv ( cok->fd, cok->last_buf->buf + cok->last_buf->buf_len,
+                             cok->last_buf->buf_size - cok->last_buf->buf_len, 0 ) ) > 0 ) {
+            cok->last_buf->buf_len += n;
+            cok->total_buf_len += n;
 
-        if ( cok->last_buf->buf_len >= cok->last_buf->buf_size ) {
-            goto init_read_buf;
+            if ( cok->last_buf->buf_len >= cok->last_buf->buf_size ) {
+                goto init_read_buf;
+            }
         }
+
+    } else {
+        while ( ( n = SSL_read ( cok->ssl, cok->last_buf->buf + cok->last_buf->buf_len,
+                                 cok->last_buf->buf_size - cok->last_buf->buf_len ) ) > 0 ) {
+            cok->last_buf->buf_len += n;
+            cok->total_buf_len += n;
+
+            if ( cok->last_buf->buf_len >= cok->last_buf->buf_size ) {
+                goto init_read_buf;
+            }
+        }
+
     }
 
     if ( n == 0 || ( n < 0 && errno != EAGAIN && errno != EWOULDBLOCK ) ) {
@@ -609,7 +738,7 @@ static int lua_co_read ( lua_State *L )
 
         if ( ( cok->status != 2 || cok->fd == -1 || !cok->ptr ) && cok->total_buf_len < 1 ) {
             lua_pushnil ( L );
-            lua_pushfstring ( L, "Not connected! %d %d", cok->status, cok->fd );
+            lua_pushfstring ( L, "Not connected!" );
             return 2;
         }
 
@@ -689,16 +818,35 @@ static int _lua_co_close ( lua_State *L, cosocket_t *cok )
 
     if ( cok->dns_query_fd > -1 ) {
         se_delete ( cok->ptr );
+        cok->ptr = NULL;
         close ( cok->dns_query_fd );
+        cok->dns_query_fd = -1;
+        cok->fd = -1;
     }
 
     if ( cok->fd > -1 ) {
+        ( ( se_ptr_t * ) cok->ptr )->fd = cok->fd;
+
         if ( cok->pool_size < 1
-             || add_connection_to_pool ( epoll_fd, cok->pool_key, cok->pool_size, cok->ptr ) == 0 ) {
+             || add_connection_to_pool ( epoll_fd, cok->pool_key, cok->pool_size, cok->ptr, cok->ssl,
+                                         cok->ctx ) == 0 ) {
             se_delete ( cok->ptr );
+            cok->ptr = NULL;
             connection_pool_counter_operate ( cok->pool_key, -1 );
+
+
+            if ( cok->ssl ) {
+                SSL_CTX_free ( cok->ctx );
+                cok->ctx = NULL;
+                SSL_free ( cok->ssl );
+                cok->ssl = NULL;
+            }
+
             close ( cok->fd );
         }
+
+        cok->ssl = NULL;
+        cok->ctx = NULL;
 
         cok->ptr = NULL;
         cok->fd = -1;
@@ -735,6 +883,14 @@ static int lua_co_gc ( lua_State *L )
 {
     cosocket_t *cok = ( cosocket_t * ) lua_touserdata ( L, 1 );
     _lua_co_close ( L, cok );
+
+    if ( cok->ssl ) {
+        SSL_CTX_free ( cok->ctx );
+        cok->ctx = NULL;
+        SSL_free ( cok->ssl );
+        cok->ssl = NULL;
+    }
+
     return 0;
 }
 
@@ -822,8 +978,16 @@ static const luaL_reg M[] = {
 static int lua_co_tcp ( lua_State *L )
 {
     cosocket_t *cok = NULL;
+
     cok = ( cosocket_t * ) lua_newuserdata ( L, sizeof ( cosocket_t ) );
-    cok->type = 2;
+
+    if ( lua_isboolean ( L, 1 ) && lua_toboolean ( L, 1 ) == 1 ) {
+        cok->use_ssl = 1;
+
+    } else {
+        cok->use_ssl = 0;
+    }
+
     cok->L = L;
     cok->inuse = 0;
     cok->ptr = NULL;
@@ -838,6 +1002,9 @@ static int lua_co_tcp ( lua_State *L )
     cok->in_read_action = 0;
     cok->pool_size = 0;
     cok->pool_key = 0;
+
+    cok->ssl = NULL;
+    cok->ctx = NULL;
 
     if ( luaL_newmetatable ( L, "cosocket" ) ) {
         /* Module table to be set as upvalue */
@@ -1036,7 +1203,7 @@ int do_other_jobs()
     if ( timer - chk_time > 0 ) {
         chk_time = timer;
         chk_do_timeout_link ( epoll_fd );
-        get_connection_in_pool ( epoll_fd, 0 );
+        get_connection_in_pool ( epoll_fd, 0, NULL );
     }
 
     /// resume swops
@@ -1118,6 +1285,9 @@ int luaopen_coevent ( lua_State *L )
 
     swop_top = malloc ( sizeof ( cosocket_swop_t ) );
     swop_top->next = NULL;
+
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
 
     lua_pushlightuserdata ( L, NULL );
     lua_setglobal ( L, "null" );

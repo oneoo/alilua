@@ -2,12 +2,53 @@
 #include "connection-pool.h"
 
 void *cosocket_connection_pool_counters[64] = {NULL32 NULL32};
+void *connect_pool_p[2][64] = {{NULL32 NULL32}, {NULL32 NULL32}};
+int connect_pool_ttl = 30; /// cache times
 
 static int cosocket_be_close ( se_ptr_t *ptr )
 {
-    del_connection_in_pool ( ptr->epoll_fd, ptr->data );
+    //printf("cosocket_be_close %d\n", ptr->fd);
     int fd = ptr->fd;
-    se_delete ( ptr );
+
+    cosocket_connection_pool_t *n = ptr->data;
+    int k = n->pool_key % 64;
+
+    if ( n == connect_pool_p[0][k] ) {
+        connect_pool_p[0][k] = n->next;
+
+        if ( n->next ) {
+            ( ( cosocket_connection_pool_t * ) n->next )->uper = NULL;
+        }
+
+    } else if ( n == connect_pool_p[1][k] ) {
+        connect_pool_p[1][k] = n->next;
+
+        if ( n->next ) {
+            ( ( cosocket_connection_pool_t * ) n->next )->uper = NULL;
+        }
+
+    } else {
+        ( ( cosocket_connection_pool_t * ) n->uper )->next = n->next;
+
+        if ( n->next ) {
+            ( ( cosocket_connection_pool_t * ) n->next )->uper = n->uper;
+        }
+    }
+
+    se_delete ( n->ptr );
+    n->ptr = NULL;
+
+    if ( n->ssl ) {
+        SSL_CTX_free ( n->ctx );
+        n->ctx = NULL;
+        SSL_free ( n->ssl );
+        n->ssl = NULL;
+    }
+
+    connection_pool_counter_operate ( n->pool_key, -1 );
+
+    free ( n );
+
     close ( fd );
 }
 
@@ -88,10 +129,8 @@ int add_waiting_get_connection ( cosocket_t *cok )
     }
 }
 
-void *connect_pool_p[2][64] = {{NULL32 NULL32}, {NULL32 NULL32}};
-int connect_pool_ttl = 30; /// cache times
-
-se_ptr_t *get_connection_in_pool ( int epoll_fd, unsigned long pool_key )
+se_ptr_t *get_connection_in_pool ( int epoll_fd, unsigned long pool_key,
+                                   cosocket_t *cok )
 {
     int k = pool_key % 64;
     int p = ( timer / connect_pool_ttl ) % 2;
@@ -148,6 +187,7 @@ se_ptr_t *get_connection_in_pool ( int epoll_fd, unsigned long pool_key )
 
 regetfd:
     n = connect_pool_p[p][k];
+    int ii = 0;
 
     while ( n != NULL ) {
         if ( n->pool_key == pool_key ) {
@@ -178,6 +218,12 @@ regetfd:
         }
 
         ptr = n->ptr;
+
+        if ( cok ) {
+            cok->ssl = n->ssl;
+            cok->ctx = n->ctx;
+        }
+
         free ( n );
         //printf ( "get fd in pool%d %d key:%d\n", p, ptr->fd, k );
         return ptr;
@@ -191,44 +237,10 @@ regetfd:
     return NULL;
 }
 
-void del_connection_in_pool ( int epoll_fd, cosocket_connection_pool_t *n )
-{
-    int k = n->pool_key % 64;
-
-    if ( n == connect_pool_p[0][k] ) {
-        connect_pool_p[0][k] = n->next;
-
-        if ( n->next ) {
-            ( ( cosocket_connection_pool_t * ) n->next )->uper = NULL;
-        }
-
-    } else if ( n == connect_pool_p[1][k] ) {
-        connect_pool_p[1][k] = n->next;
-
-        if ( n->next ) {
-            ( ( cosocket_connection_pool_t * ) n->next )->uper = NULL;
-        }
-
-    } else {
-        ( ( cosocket_connection_pool_t * ) n->uper )->next = n->next;
-
-        if ( n->next ) {
-            ( ( cosocket_connection_pool_t * ) n->next )->uper = n->uper;
-        }
-    }
-
-    se_delete ( n->ptr );
-    n->ptr = NULL;
-
-    connection_pool_counter_operate ( n->pool_key, -1 );
-
-    free ( n );
-}
-
 int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size,
-                             se_ptr_t *ptr )
+                             se_ptr_t *ptr, void *ssl, void *ctx )
 {
-    if ( pool_key < 0 || !ptr ) {
+    if ( pool_key < 0 || !ptr || ptr->fd < 0 ) {
         return 0;
     }
 
@@ -267,6 +279,8 @@ int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size
 
                 free ( n );
 
+                _cok->ssl = ssl;
+                _cok->ctx = ctx;
                 _cok->ptr = ptr;
                 ptr->data = _cok;
                 _cok->fd = ptr->fd;
@@ -305,16 +319,19 @@ int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size
             return 0;
         }
 
-        //m->type = EPOLL_PTR_TYPE_COSOCKET_WAIT;
         ptr->z = 0; // recached
         m->ptr = ptr;
         m->pool_key = pool_key;
+        m->ssl = ssl;
+        m->ctx = ctx;
         m->next = NULL;
         m->uper = NULL;
-        //m->fd = fd;
+
         connect_pool_p[p][k] = m;
 
         ptr->data = m;
+        n = connect_pool_p[p][k];
+
         se_be_read ( ptr, cosocket_be_close );
 
         return 1;
@@ -340,6 +357,8 @@ int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size
                 ptr->z = 0; // recached
                 m->ptr = ptr;
                 m->pool_key = pool_key;
+                m->ssl = ssl;
+                m->ctx = ctx;
                 m->next = NULL;
                 m->uper = n;
                 //m->fd = fd;
@@ -347,7 +366,6 @@ int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size
 
                 ptr->data = m;
                 se_be_read ( ptr, cosocket_be_close );
-
                 return 1;
             }
 

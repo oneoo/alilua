@@ -15,7 +15,6 @@ local tcp
 local base64_encode = base64_encode
 
 if ngx and ngx.say then
-	print = ngx.say
 	tcp = ngx.socket.tcp
 	base64_encode = ngx.encode_base64
 	base64_decode = ngx.decode_base64
@@ -35,7 +34,10 @@ module(...)
 _VERSION = '0.1'
 
 local function httprequest(url, params)
-	local sock, err = tcp()
+	local chunk, protocol = url:match('^(([a-z0-9+]+)://)')
+	url = url:sub((chunk and #chunk or 0) + 1)
+
+	local sock, err = tcp(protocol=='https')
 	if not sock then
 		return nil, err
 	end
@@ -49,8 +51,7 @@ local function httprequest(url, params)
 	if params.timeout then
 		sock:settimeout(params.timeout/(ngx and 1 or 1000))
 	end
-	local chunk, protocol = url:match('^(([a-z0-9+]+)://)')
-	url = url:sub((chunk and #chunk or 0) + 1)
+	
 	local host = url:match('^([^/]+)')
 	local hostname, port
 	local user,pw
@@ -62,7 +63,7 @@ local function httprequest(url, params)
 		end
 		hostname = host:match('^([^:/]+)')
 		port = host:match(':(%d+)$')
-		port = port and port or 80
+		port = port and port or (protocol=='https' and 443 or 80)
 	end
 	
 	local uri = url
@@ -90,7 +91,7 @@ local function httprequest(url, params)
 	local is_multipart = false
 	local is_post = false
 	--multipart/form-data
-	local boundary = '--'..base64_encode(os.time()..math.random()):sub(1,16)
+	local boundary = ''
 	local send_file_length_sum = 0
 	if params.data then
 		local k,v
@@ -117,6 +118,7 @@ local function httprequest(url, params)
 				end
 				contents = table.concat(contents, '&')
 			else
+				boundary = '--'..base64_encode(os.time()..math.random()):sub(1,16)
 				for k,v in pairs(params.data) do
 					if type(v) == 'string' then
 						rawset(contents, i, 'Content-Disposition: form-data; name="'..k..'"\r\n\r\n'..v)
@@ -324,24 +326,22 @@ local function httprequest(url, params)
 	sock:close()
 	
 	if zlib then
-	if gziped then
-		i = 1
-		local maxi = #bodys
-		local stream = zlib.inflate(function()
-				i=i+1
-				if i > maxi+1 then return nil end
-				return bodys[i-1]
-		end)
-		bodys = stream:read('*a')
-		stream:close()
-	elseif deflated then
-		bodys = zlib.decompress(table.concat(bodys),-8)
-	end
+		if gziped then
+			i = 1
+			local maxi = #bodys
+			local stream = zlib.inflate(function()
+					i=i+1
+					if i > maxi+1 then return nil end
+					return bodys[i-1]
+			end)
+			bodys = stream:read('*a')
+			stream:close()
+		elseif deflated then
+			bodys = zlib.decompress(table.concat(bodys),-8)
+		end
 	end
 	
 	if type(bodys) == 'table' then bodys = table.concat(bodys) end
-	
-	sock:close()
 	
 	return bodys, headers, rterr
 end

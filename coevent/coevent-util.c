@@ -8,22 +8,22 @@ long longtime()
     return 1000 * t.time + t.millitm;
 }
 
-int coevent_setnonblocking ( int fd )
+int coevent_setblocking ( int fd, int blocking )
 {
-    int opts = 0;
-    opts = fcntl ( fd, F_GETFL );
+    int flags = fcntl ( fd, F_GETFL, 0 );
 
-    if ( opts < 0 ) {
+    if ( flags == -1 ) {
         return 0;
     }
 
-    opts = opts | O_NONBLOCK;
+    if ( blocking ) {
+        flags &= ~O_NONBLOCK;
 
-    if ( fcntl ( fd, F_SETFL, opts ) < 0 ) {
-        return 0;
+    } else {
+        flags |= O_NONBLOCK;
     }
 
-    return 1;
+    return fcntl ( fd, F_SETFL, flags ) != -1;
 }
 
 static struct hostent *localhost_ent = NULL;
@@ -85,7 +85,7 @@ int tcp_connect ( const char *host, int port, cosocket_t *cok, int epoll_fd, int
     }
 
     if ( cok->pool_size > 0 ) {
-        cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key );
+        cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key, cok );
     }
 
     if ( !cok->ptr ) {
@@ -93,7 +93,7 @@ int tcp_connect ( const char *host, int port, cosocket_t *cok, int epoll_fd, int
             return -1;
         }
 
-        if ( !coevent_setnonblocking ( sockfd ) ) {
+        if ( !coevent_setblocking ( sockfd , 0 ) ) {
             close ( sockfd );
             return -1;
         }
@@ -285,6 +285,7 @@ int chk_do_timeout_link ( int epoll_fd )
 
                 if ( cok->dns_query_fd > -1 ) {
                     se_delete ( cok->ptr );
+                    cok->ptr = NULL;
                     close ( cok->dns_query_fd );
                     cok->dns_query_fd = -1;
 
