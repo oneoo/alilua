@@ -131,6 +131,7 @@ typedef struct {
 
 #define NULL32 NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
 int lua_co_resume ( lua_State *L , int args );
+int cosocket_be_ssl_connected ( se_ptr_t *ptr );
 int cosocket_be_connected ( se_ptr_t *ptr );
 int coevent_setblocking ( int fd, int blocking );
 int add_to_timeout_link ( cosocket_t *cok, int timeout );

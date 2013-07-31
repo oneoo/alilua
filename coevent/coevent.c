@@ -36,6 +36,21 @@ int lua_co_resume ( lua_State *L , int nargs )
     return ret;
 }
 
+int cosocket_be_ssl_connected ( se_ptr_t *ptr )
+{
+    cosocket_t *cok = ptr->data;
+
+    if ( SSL_connect ( cok->ssl ) ) {
+        se_be_pri ( cok->ptr, NULL );
+        lua_pushboolean ( cok->L, 1 );
+        cok->inuse = 0;
+        lua_co_resume ( cok->L, 1 );
+        return 1;
+    }
+
+    return 0;
+}
+
 int cosocket_be_connected ( se_ptr_t *ptr )
 {
     cosocket_t *cok = ptr->data;
@@ -109,23 +124,18 @@ int cosocket_be_connected ( se_ptr_t *ptr )
                 return 2;
             }
 
-            coevent_setblocking ( cok->fd, 1 );
             SSL_set_fd ( cok->ssl, cok->fd );
 
-            if ( SSL_connect ( cok->ssl ) == -1 ) {
-                se_delete ( cok->ptr );
-                close ( cok->fd );
-
-                cok->ptr = NULL;
-                cok->fd = -1;
-                cok->status = 0;
-
-                lua_pushnil ( cok->L );
-                lua_pushstring ( cok->L, "ssl connect error!" );
-                return 2;
+            if ( SSL_connect ( cok->ssl ) == 1 ) {
+                se_be_pri ( cok->ptr, NULL );
+                lua_pushboolean ( cok->L, 1 );
+                cok->inuse = 0;
+                lua_co_resume ( cok->L, 1 );
+                return 1;
             }
 
-            coevent_setblocking ( cok->fd, 0 );
+            se_be_read ( cok->ptr, cosocket_be_ssl_connected );
+            return 0;
         }
 
         se_be_pri ( cok->ptr, NULL );
@@ -301,23 +311,18 @@ static int lua_co_connect ( lua_State *L )
                     return 2;
                 }
 
-                coevent_setblocking ( cok->fd, 1 );
                 SSL_set_fd ( cok->ssl, cok->fd );
 
-                if ( SSL_connect ( cok->ssl ) == -1 ) {
-                    se_delete ( cok->ptr );
-                    close ( cok->fd );
+                if ( SSL_connect ( cok->ssl ) == 1 ) {
+                    se_be_pri ( cok->ptr, NULL );
+                    lua_pushboolean ( cok->L, 1 );
+                    return 1;
 
-                    cok->ptr = NULL;
-                    cok->fd = -1;
-                    cok->status = 0;
-
-                    lua_pushnil ( cok->L );
-                    lua_pushstring ( cok->L, "ssl connect error!" );
-                    return 2;
+                } else {
+                    se_be_read ( cok->ptr, cosocket_be_ssl_connected );
+                    cok->inuse = 1;
+                    return lua_yield ( L, 0 );
                 }
-
-                coevent_setblocking ( cok->fd, 0 );
             }
 
             lua_pushboolean ( L, 1 );

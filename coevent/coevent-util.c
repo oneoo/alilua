@@ -298,6 +298,14 @@ int chk_do_timeout_link ( int epoll_fd )
                     cok->status = 0;
                 }
 
+                if ( cok->ssl ) {
+                    SSL_shutdown ( cok->ssl );
+                    SSL_CTX_free ( cok->ctx );
+                    cok->ctx = NULL;
+                    SSL_free ( cok->ssl );
+                    cok->ssl = NULL;
+                }
+
                 lua_pushnil ( cok->L );
                 lua_pushstring ( cok->L, "timeout!" );
                 cok->inuse = 0;

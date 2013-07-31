@@ -271,9 +271,6 @@ int be_get_dns_result ( se_ptr_t *ptr )
                 cok->fd = ( ( se_ptr_t * ) cok->ptr )->fd;
             }
 
-
-
-
             if ( cok->reusedtimes == 0 ) {
                 se_be_write ( cok->ptr, cosocket_be_connected );
             }
@@ -315,23 +312,13 @@ int be_get_dns_result ( se_ptr_t *ptr )
                         return 2;
                     }
 
-                    coevent_setblocking ( cok->fd, 1 );
                     SSL_set_fd ( cok->ssl, cok->fd );
 
-                    if ( SSL_connect ( cok->ssl ) == -1 ) {
-                        se_delete ( cok->ptr );
-                        close ( cok->fd );
-
-                        cok->ptr = NULL;
-                        cok->fd = -1;
-                        cok->status = 0;
-
-                        lua_pushnil ( cok->L );
-                        lua_pushstring ( cok->L, "ssl connect error!" );
-                        return 2;
+                    if ( SSL_connect ( cok->ssl ) != 1 ) {
+                        se_be_read ( cok->ptr, cosocket_be_ssl_connected );
+                        cok->inuse = 1;
+                        return 0;
                     }
-
-                    coevent_setblocking ( cok->fd, 0 );
                 }
 
                 lua_pushboolean ( cok->L, 1 );
