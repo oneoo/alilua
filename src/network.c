@@ -249,7 +249,6 @@ void network_be_end ( epdata_t *epd )  // for lua function die
     //printf ( "network_be_end %d\n" , ((se_ptr_t*)epd->se_ptr)->fd );
     epoll_status.success_counts++;
     update_timeout ( epd->timeout_ptr, STEP_SEND_TIMEOUT );
-    epoll_status.sending_counts++;
     se_be_write ( epd->se_ptr, network_be_write );
     epd->status = STEP_SEND;
 
@@ -262,6 +261,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
         network_send_error ( epd, 404, "File Not Found!" );
 
     } else {
+        epoll_status.sending_counts++;
         int gzip_data = 0;
 
         //printf("%d %s\n", epd->response_content_length, epd->iov[1].iov_base);
@@ -335,6 +335,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
             if ( epd->iov[0].iov_base == NULL ) {
                 epd->keepalive = 0;
                 network_end_process ( epd );
+                epoll_status.sending_counts--;
                 return;
             }
 
@@ -373,6 +374,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
 
         if ( epd->response_content_length == 0 ) {
             network_end_process ( epd );
+            epoll_status.sending_counts--;
 
         } else {
             epd->response_buf_sended = 0;
