@@ -3,7 +3,19 @@
 
 function process(headers, _GET, _COOKIE, _POST)
 	local r,e = newthread(function()
-		dofile(host_route[headers.host]) die()
+		local router = host_route[headers.host]
+		__root = router
+		local m = #router
+		local k
+		local p = ('/'):byte(1)
+		for k = 1,m do
+			if router:byte(m-k) == p then
+				__root = router:sub(1,m-k)
+				router = router:sub(m-k)
+				break
+			end
+		end
+		dofile(router) die()
 	end)
 	
 	if e then print_error(e) end

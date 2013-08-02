@@ -203,11 +203,14 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	box.dump = function(...) dump(box.echo, ...) end
 	box.sendfile = function(f) sendfile(__epd__, f) end
 	box.header = function(s) header(__epd__, s) end
+	box.loadtemplate = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return loadtemplate(f) end
 	box.dotemplate = function(f, ir)
-		local f, e, c = loadtemplate(f, ir)
+		local f, e, c = box.loadtemplate(f, ir)
 		if f then
 			setfenv(f, box)
 			return pcall(f)
+		else
+			box.print(e)
 		end
 		return f, e, c
 	end
@@ -243,8 +246,10 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	end
 	box.get_post_body = function() return get_post_body(__epd__) end
 	box.print_error = function(e) print_error(__epd__, e) end
-	--box.loadfile = function(f) local r = loadfile(f) setfenv(r, box) return r end
+	box.file_exists = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return file_exists(f) end
+	box.sendfile = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return sendfile(__epd__, f) end
 	box.loadfile = function(f)
+		if not f:startsWith(box.__root) then f = box.__root .. f end
 		local r = CodeCache[f]
 		local err
 		if not r then
