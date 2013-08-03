@@ -25,8 +25,8 @@ local json_decode = cjson.decode
 function printf(s, ...) print(s:format(...)) end
 function sprintf(s, ...) return (s:format(...)) end
 
-function dump(P, o, doprint, inden)
-	--local P=--io.write
+function dump(o, doprint, inden)
+	local P=io.write
 	if not inden then inden = 1 end
 	if not doprint then
 		if type(o) == 'table' then
@@ -50,7 +50,7 @@ function dump(P, o, doprint, inden)
 			for k,v in pairs(o) do
 				if type(k) == 'number' then k = '['..k..']' end
 				P(string.rep('    ',inden), k, ' = ')
-				dump(P, v, doprint, inden+1)
+				dump(v, doprint, inden+1)
 				P(',\n')
 			end
 			P(string.rep('    ',inden-1), '}')
@@ -175,10 +175,33 @@ function setcookie(name, value, expire, path, domain)
 	end
 	return cookie
 end
-function session()
+
+function jsonrpc_handle(data, apis)
+	header('Content-Type:text/javascript')
+	if data and data.method then
+		local v = '1.0'
+		if data.method:find('.', 1, true) then
+			v = '2.0'
+		end
+		if not data.jsonrpc then data.jsonrpc = v end
+		local method = explode(data.method, '.')
+		if apis[method[1]] and (v == '1.0' or apis[method[1]][method[2]]) then
+			print(json_encode(
+					{
+					jsonrpc = data.jsonrpc,
+					result = (v == '1.0' and apis[method[1]] or apis[method[1]][method[2]])(unpack(data.params)),
+					error = null
+					}
+				))
+		else
+			print(json_encode({jsonrpc = data.jsonrpc,result = null,error = "method not exists!"}))
+		end
+	else
+		print(json_encode({jsonrpc = v,result = null,error = "Agreement Error!"}))
+	end
 end
 
-local env = {io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
+local env = {null=null,io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
 			httpclient=httpclient,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
 			cosocket=cosocket,allthreads=allthreads,newthread=newthread,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
@@ -200,7 +223,7 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	box.echo = function(...) check_timeout(__epd__) echo(__epd__, ...) end
 	box.print = box.echo
 	box.printf = function(...) check_timeout(__epd__) echo(__epd__, sprintf(...)) end
-	box.dump = function(...) dump(box.echo, ...) end
+	box.dump = function(o, p) local r = dump(o) if p then box.echo('a',r) r = '' end return r end
 	box.sendfile = function(f) sendfile(__epd__, f) end
 	box.header = function(s) header(__epd__, s) end
 	box.loadtemplate = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return loadtemplate(f) end
@@ -256,7 +279,7 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 			r = cache_get('__cache_'..f)
 			if not r then
 				r, err = loadfile(f)
-				if r then cache_set('__cache_'..f, string.dump(r)) end
+				if r then cache_set('__cache_'..f, string.dump(r), 60) end
 			else
 				r, err = loadstring(r)
 			end
@@ -266,6 +289,7 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 		return r, err
 	end
 	box.dofile = function(f) local r,e = box.loadfile(f) if r then setfenv(r, box) return r() else error(e) end end
+	box.jsonrpc_handle = function(...) setfenv(jsonrpc_handle, box) jsonrpc_handle(...) end
 	
 	box.__fun_hooks = {}
 	box.__hooked = {}

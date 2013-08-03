@@ -236,7 +236,7 @@ int lua_f_file_exists ( lua_State *L )
 
     const char *fname = lua_tostring ( L, 1 );
 
-    lua_pushboolean ( L, access( fname, F_OK ) != -1 );
+    lua_pushboolean ( L, access ( fname, F_OK ) != -1 );
 
     return 1;
 }
