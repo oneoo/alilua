@@ -1,5 +1,4 @@
 --host_route['^.*$'] = '/var/www/a.com/index.lua'
-host_route['^.*$'] = '/home/oneoo/alilua-web-demo/www/route.lua'
 --host_route['b.com'] = '/var/www/b.com/index.lua'
 
 function process(headers, _GET, _COOKIE, _POST)
