@@ -4,12 +4,40 @@ A epoll based web server, inculded lua/coevent support (Only support Linux platf
 
 Install
 --------
-$tar zxf alilua-*.tar.gz
 
-$cd alilua-*
+###Requires
+
+Ubuntu:
+
+sudo apt-get install libssl-dev
+
+Fedora:
+
+sudo yum install openssl-devel
+
+###Install LuaJit
+
+wget http://luajit.org/download/LuaJIT-2.0.2.tar.gz
+
+tar zxf LuaJIT-2.0.2.tar.gz
+
+cd LuaJIT-2.0.2
+
+make
+
+sudo make install
+
+make clean
+
+sudo ldconfig
+
+###Install aLiLua
+
+$git clone https://github.com/yo2oneoo/alilua.git
+
+$cd alilua
 
 $sudo make install clean
-
 
 Using LuaJit
 --------
