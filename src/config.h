@@ -14,7 +14,7 @@
 #define STEP_FINISH_TIMEOUT 60
 #define STEP_WAIT_TIMEOUT 30
 
-/// epoll config
+/// poll config
 #define EP_D_BUF_SIZE 4096 /// read block size
 #define EPD_POOL_SIZE 4096*128
 #define EPOLL_WAITOUT 10

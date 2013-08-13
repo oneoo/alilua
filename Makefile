@@ -1,6 +1,6 @@
 CC = gcc
 OPTIMIZATION = -O3
-CFLAGS = $(OPTIMIZATION) -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE) -DLUA_USER_LINUX
+CFLAGS = $(OPTIMIZATION) -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE)
 DEBUG = -g -rdynamic -ggdb
 ifeq ($(LUAJIT),)
 ifeq ($(LUA),)
@@ -14,6 +14,7 @@ endif
 ifndef $(PREFIX)
 PREFIX = /usr/local/alilua
 endif
+INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0
 #package.path = package.path .. ";../entity.lua"
 all: alilua
 
@@ -22,13 +23,13 @@ alilua : main.o
 
 main.o:
 	[ -d objs ] || mkdir objs;
-	cd objs && $(CC) -c ../common/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../se/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../src/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../deps/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../deps/yac/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../deps/fastlz/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
-	cd objs && $(CC) -c ../coevent/*.c $(CFLAGS) $(DEBUG) $(LIBLUA);
+	cd objs && $(CC) -c ../common/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../se/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../src/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../deps/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../deps/yac/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../deps/fastlz/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
+	cd objs && $(CC) -c ../coevent/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
 
 	cd lua-libs/LuaBitOp-1.0.2 && make && cp bit.so ../ && make clean;
 	cd lua-libs/lua-cjson-2.1.0 && make && cp cjson.so ../ && make clean;

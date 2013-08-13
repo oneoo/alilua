@@ -129,7 +129,7 @@ int add_waiting_get_connection ( cosocket_t *cok )
     }
 }
 
-se_ptr_t *get_connection_in_pool ( int epoll_fd, unsigned long pool_key,
+se_ptr_t *get_connection_in_pool ( int loop_fd, unsigned long pool_key,
                                    cosocket_t *cok )
 {
     int k = pool_key % 64;
@@ -237,7 +237,7 @@ regetfd:
     return NULL;
 }
 
-int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size,
+int add_connection_to_pool ( int loop_fd, unsigned long pool_key, int pool_size,
                              se_ptr_t *ptr, void *ssl, void *ctx )
 {
     if ( pool_key < 0 || !ptr || ptr->fd < 0 ) {
@@ -353,7 +353,6 @@ int add_connection_to_pool ( int epoll_fd, unsigned long pool_key, int pool_size
                     return 0;
                 }
 
-                //m->type = EPOLL_PTR_TYPE_COSOCKET_WAIT;
                 ptr->z = 0; // recached
                 m->ptr = ptr;
                 m->pool_key = pool_key;

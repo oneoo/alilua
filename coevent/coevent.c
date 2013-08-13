@@ -1,7 +1,7 @@
 #include "coevent.h"
 #include "connection-pool.h"
 
-static int epoll_fd = 0;
+static int loop_fd = 0;
 static lua_State *LM = NULL;
 static int clearthreads_handler = 0;
 static unsigned char temp_buf[4096];
@@ -233,7 +233,7 @@ static int lua_co_connect ( lua_State *L )
                         cok->pool_key );
 
             if ( pool_counter->count >= cok->pool_size / process_count ) {
-                cok->ptr = get_connection_in_pool ( epoll_fd, cok->pool_key, cok );
+                cok->ptr = get_connection_in_pool ( loop_fd, cok->pool_key, cok );
 
                 if ( cok->ptr ) {
                     ( ( se_ptr_t * ) cok->ptr )->data = cok;
@@ -255,7 +255,7 @@ static int lua_co_connect ( lua_State *L )
         }
 
         int connect_ret = 0;
-        cok->fd = tcp_connect ( host, port, cok, epoll_fd, &connect_ret );
+        cok->fd = tcp_connect ( host, port, cok, loop_fd, &connect_ret );
 
         if ( cok->fd == -1 && cok->dns_query_fd == -1 ) {
             lua_pushnil ( L );
@@ -833,7 +833,7 @@ static int _lua_co_close ( lua_State *L, cosocket_t *cok )
         ( ( se_ptr_t * ) cok->ptr )->fd = cok->fd;
 
         if ( cok->pool_size < 1
-             || add_connection_to_pool ( epoll_fd, cok->pool_key, cok->pool_size, cok->ptr, cok->ssl,
+             || add_connection_to_pool ( loop_fd, cok->pool_key, cok->pool_size, cok->ptr, cok->ssl,
                                          cok->ctx ) == 0 ) {
             se_delete ( cok->ptr );
             cok->ptr = NULL;
@@ -1166,9 +1166,9 @@ int lua_f_coroutine_swop ( lua_State *L )
 
 static lua_State *job_L = NULL;
 
-void set_epoll_fd ( int fd, int _process_count ) /// for alilua-serv
+void set_loop_fd ( int fd, int _process_count ) /// for alilua-serv
 {
-    epoll_fd = fd;
+    loop_fd = fd;
 
     if ( _process_count > 1 ) {
         process_count = _process_count;
@@ -1207,8 +1207,8 @@ int do_other_jobs()
 
     if ( timer - chk_time > 0 ) {
         chk_time = timer;
-        chk_do_timeout_link ( epoll_fd );
-        get_connection_in_pool ( epoll_fd, 0, NULL );
+        chk_do_timeout_link ( loop_fd );
+        get_connection_in_pool ( loop_fd, 0, NULL );
     }
 
     /// resume swops
@@ -1259,8 +1259,8 @@ static const struct luaL_reg cosocket_methods[] = {
 
 int lua_f_startloop ( lua_State *L )
 {
-    if ( epoll_fd == -1 ) {
-        epoll_fd = se_create ( 4096 );
+    if ( loop_fd == -1 ) {
+        loop_fd = se_create ( 4096 );
     }
 
     luaL_argcheck ( L, lua_isfunction ( L, 1 )
@@ -1278,7 +1278,7 @@ int lua_f_startloop ( lua_State *L )
     clearthreads_handler = luaL_ref ( job_L, LUA_REGISTRYINDEX );
     LM = job_L;
 
-    se_loop ( epoll_fd, 10, _do_other_jobs );
+    se_loop ( loop_fd, 10, _do_other_jobs );
 
     return 0;
 }
@@ -1286,7 +1286,7 @@ int lua_f_startloop ( lua_State *L )
 int luaopen_coevent ( lua_State *L )
 {
     LM = L;
-    epoll_fd = -1;
+    loop_fd = -1;
 
     swop_top = malloc ( sizeof ( cosocket_swop_t ) );
     swop_top->next = NULL;

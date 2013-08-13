@@ -200,7 +200,7 @@ int forkProcess ( void ( *func ) () )
 
     if ( ret == 0 ) {
         active_cpu ( _workerprocess_count );
-        func();
+        func(_workerprocess_count);
     }
 
     if ( ret > 0 ) {
@@ -222,7 +222,7 @@ void safeProcess()
 
             if ( ret == 0 ) {
                 active_cpu ( i );
-                _workerprocess_func[i]();
+                _workerprocess_func[i](i);
             }
 
             _workerprocess[i] = ret;

@@ -6,7 +6,6 @@
 #include <sys/timeb.h>
 #include <time.h>
 #include <math.h>
-#include <sys/epoll.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -29,12 +28,8 @@
 #define free(p) do { if (p) { free(p); p = NULL; } } while (0)
 #define close(fd) do { if (fd >= 0) { close(fd); fd = -1; } } while (0)
 
-#ifndef _COTEST_H
-#define _COTEST_H
-
-#define EPOLL_PTR_TYPE_MAIN 1
-#define EPOLL_PTR_TYPE_COSOCKET 2
-#define EPOLL_PTR_TYPE_COSOCKET_WAIT 3
+#ifndef _COEVENT_H
+#define _COEVENT_H
 
 #define large_malloc(s) (malloc(((int)(s/4096)+1)*4096))
 #define A_C_R "\x1b[31m"
@@ -137,15 +132,15 @@ int coevent_setblocking ( int fd, int blocking );
 int add_to_timeout_link ( cosocket_t *cok, int timeout );
 int del_in_timeout_link ( cosocket_t *cok );
 int lua_f_coroutine_resume_waiting ( lua_State *L );
-int chk_do_timeout_link ( int epoll_fd );
+int chk_do_timeout_link ( int loop_fd );
 
 void add_dns_cache ( const char *name, struct in_addr addr, int do_recache );
-int do_dns_query ( int epoll_fd, cosocket_t *cok, const char *name );
+int do_dns_query ( int loop_fd, cosocket_t *cok, const char *name );
 
 
 long longtime();
 
-int tcp_connect ( const char *host, int port, cosocket_t *cok, int epoll_fd, int *ret );
+int tcp_connect ( const char *host, int port, cosocket_t *cok, int loop_fd, int *ret );
 
 int lua_f_time ( lua_State *L );
 int lua_f_longtime ( lua_State *L );

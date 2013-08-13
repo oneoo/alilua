@@ -1,11 +1,15 @@
 #include "se.h"
 
+#ifdef linux
+#include <sys/epoll.h>
+static struct epoll_event events[SE_SIZE], ev;
+
 int se_create ( int event_size )
 {
     return epoll_create ( event_size );
 }
 
-int se_loop ( int epoll_fd, int waitout, se_waitout_proc_t *waitout_proc )
+int se_loop ( int loop_fd, int waitout, se_waitout_proc_t *waitout_proc )
 {
     int n = 0, i = 0, r = 1;
     se_ptr_t *ptr = NULL;
@@ -15,7 +19,7 @@ int se_loop ( int epoll_fd, int waitout, se_waitout_proc_t *waitout_proc )
             r = waitout_proc();
         }
 
-        n = epoll_wait ( epoll_fd, events, SE_SIZE, waitout );
+        n = epoll_wait ( loop_fd, events, SE_SIZE, waitout );
 
         for ( i = 0; i < n; i++ ) {
             ptr = events[i].data.ptr;
@@ -32,7 +36,7 @@ int se_loop ( int epoll_fd, int waitout, se_waitout_proc_t *waitout_proc )
     }
 }
 
-se_ptr_t *se_add ( int epoll_fd, int fd, void *data )
+se_ptr_t *se_add ( int loop_fd, int fd, void *data )
 {
     se_ptr_t *ptr = malloc ( sizeof ( se_ptr_t ) );
 
@@ -40,7 +44,7 @@ se_ptr_t *se_add ( int epoll_fd, int fd, void *data )
         return ptr;
     }
 
-    ptr->epoll_fd = epoll_fd;
+    ptr->loop_fd = loop_fd;
     ptr->fd = fd;
     ptr->func = NULL;
     ptr->data = data;
@@ -49,7 +53,7 @@ se_ptr_t *se_add ( int epoll_fd, int fd, void *data )
     ev.data.ptr = ptr;
     ev.events = EPOLLPRI;
 
-    int ret = epoll_ctl ( epoll_fd, EPOLL_CTL_ADD, fd, &ev );
+    int ret = epoll_ctl ( loop_fd, EPOLL_CTL_ADD, fd, &ev );
 
     if ( ret < 0 ) {
         free ( ptr );
@@ -65,7 +69,7 @@ int se_delete ( se_ptr_t *ptr )
         return -1;
     }
 
-    if ( epoll_ctl ( ptr->epoll_fd, EPOLL_CTL_DEL, ptr->fd, &ev ) < 0 ) {
+    if ( epoll_ctl ( ptr->loop_fd, EPOLL_CTL_DEL, ptr->fd, &ev ) < 0 ) {
         return -1;
     }
 
@@ -81,7 +85,7 @@ int se_be_read ( se_ptr_t *ptr, se_rw_proc_t *func )
     ev.data.ptr = ptr;
     ev.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP;
 
-    return epoll_ctl ( ptr->epoll_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
+    return epoll_ctl ( ptr->loop_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
 }
 
 int se_be_write ( se_ptr_t *ptr, se_rw_proc_t *func )
@@ -91,7 +95,7 @@ int se_be_write ( se_ptr_t *ptr, se_rw_proc_t *func )
     ev.data.ptr = ptr;
     ev.events = EPOLLOUT | EPOLLRDHUP | EPOLLHUP;
 
-    return epoll_ctl ( ptr->epoll_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
+    return epoll_ctl ( ptr->loop_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
 }
 
 int se_be_pri ( se_ptr_t *ptr, se_rw_proc_t *func )
@@ -101,5 +105,7 @@ int se_be_pri ( se_ptr_t *ptr, se_rw_proc_t *func )
     ev.data.ptr = ptr;
     ev.events = EPOLLPRI;
 
-    return epoll_ctl ( ptr->epoll_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
+    return epoll_ctl ( ptr->loop_fd, EPOLL_CTL_MOD, ptr->fd, &ev );
 }
+
+#endif

@@ -1,7 +1,7 @@
 #include "main.h"
 
 static char temp_buf[8192];
-static epoll_status_t tmp_status;
+static serv_status_t tmp_status;
 
 static uint64_t time_micros ( void )
 {
@@ -79,7 +79,7 @@ int network_bind ( char *addr, int port )
         exit ( 1 );
     }
 
-    memset ( &tmp_status, 0, sizeof ( epoll_status_t ) );
+    memset ( &tmp_status, 0, sizeof ( serv_status_t ) );
 
     return fd;
 }
@@ -316,7 +316,7 @@ void network_send_error ( epdata_t *epd, int code, const char *msg )
     network_be_end ( epd );
 }
 
-void sync_epoll_status()
+void sync_serv_status()
 {
     time_t now2;
     time ( &now2 );
@@ -327,7 +327,7 @@ void sync_epoll_status()
 
     now = now2;
 
-    epoll_status.sec_process_counts[ ( now - 5 ) % 5] = 0;
+    serv_status.sec_process_counts[ ( now - 5 ) % 5] = 0;
 
     int i, k = 0;
 
@@ -342,38 +342,38 @@ void sync_epoll_status()
               now_tm.tm_sec );
 
 
-    shm_lock ( _shm_epoll_status );
-    shm_epoll_status->connect_counts += epoll_status.connect_counts;
-    epoll_status.connect_counts = 0;
-    shm_epoll_status->success_counts += epoll_status.success_counts;
-    epoll_status.success_counts = 0;
-    shm_epoll_status->process_counts += epoll_status.process_counts;
-    epoll_status.process_counts = 0;
+    shm_lock ( _shm_serv_status );
+    shm_serv_status->connect_counts += serv_status.connect_counts;
+    serv_status.connect_counts = 0;
+    shm_serv_status->success_counts += serv_status.success_counts;
+    serv_status.success_counts = 0;
+    shm_serv_status->process_counts += serv_status.process_counts;
+    serv_status.process_counts = 0;
 
-    shm_epoll_status->waiting_counts += epoll_status.waiting_counts -
-                                        tmp_status.waiting_counts;
-    shm_epoll_status->reading_counts += epoll_status.reading_counts -
-                                        tmp_status.reading_counts;
-    shm_epoll_status->sending_counts += epoll_status.sending_counts -
-                                        tmp_status.sending_counts;
+    shm_serv_status->waiting_counts += serv_status.waiting_counts -
+                                       tmp_status.waiting_counts;
+    shm_serv_status->reading_counts += serv_status.reading_counts -
+                                       tmp_status.reading_counts;
+    shm_serv_status->sending_counts += serv_status.sending_counts -
+                                       tmp_status.sending_counts;
 
-    shm_epoll_status->active_counts += epoll_status.active_counts -
-                                       tmp_status.active_counts;
+    shm_serv_status->active_counts += serv_status.active_counts -
+                                      tmp_status.active_counts;
 
-    shm_epoll_status->sec_process_counts[0] += epoll_status.sec_process_counts[0] -
+    shm_serv_status->sec_process_counts[0] += serv_status.sec_process_counts[0] -
             tmp_status.sec_process_counts[0];
-    shm_epoll_status->sec_process_counts[1] += epoll_status.sec_process_counts[1] -
+    shm_serv_status->sec_process_counts[1] += serv_status.sec_process_counts[1] -
             tmp_status.sec_process_counts[1];
-    shm_epoll_status->sec_process_counts[2] += epoll_status.sec_process_counts[2] -
+    shm_serv_status->sec_process_counts[2] += serv_status.sec_process_counts[2] -
             tmp_status.sec_process_counts[2];
-    shm_epoll_status->sec_process_counts[3] += epoll_status.sec_process_counts[3] -
+    shm_serv_status->sec_process_counts[3] += serv_status.sec_process_counts[3] -
             tmp_status.sec_process_counts[3];
-    shm_epoll_status->sec_process_counts[4] += epoll_status.sec_process_counts[4] -
+    shm_serv_status->sec_process_counts[4] += serv_status.sec_process_counts[4] -
             tmp_status.sec_process_counts[4];
 
-    memcpy ( &tmp_status, &epoll_status, sizeof ( epoll_status_t ) );
+    memcpy ( &tmp_status, &serv_status, sizeof ( serv_status_t ) );
 
-    shm_unlock ( _shm_epoll_status );
+    shm_unlock ( _shm_serv_status );
 
 }
 
@@ -384,25 +384,25 @@ void network_send_status ( epdata_t *epd )
 
     network_send_header ( epd, temp_buf );
 
-    shm_lock ( _shm_epoll_status );
+    shm_lock ( _shm_serv_status );
     int sum_cs = 0;
     int i = 0;
 
     for ( i = now - 3; i < now; i++ ) {
-        sum_cs += shm_epoll_status->sec_process_counts[i % 5];
+        sum_cs += shm_serv_status->sec_process_counts[i % 5];
     }
 
     len = sprintf ( temp_buf, "Active connections: %d\nserver accepts handled requests\n%"
                     PRIu64 " %" PRIu64 " %" PRIu64
                     "\nReading: %d Writing: %d Waiting: %d\nRequests per second: %d [#/sec] (mean)\n",
-                    shm_epoll_status->active_counts,
-                    shm_epoll_status->connect_counts, shm_epoll_status->success_counts,
-                    shm_epoll_status->process_counts,
-                    shm_epoll_status->reading_counts, shm_epoll_status->sending_counts,
-                    shm_epoll_status->active_counts - shm_epoll_status->reading_counts -
-                    shm_epoll_status->sending_counts, ( sum_cs / 3 ) );
+                    shm_serv_status->active_counts,
+                    shm_serv_status->connect_counts, shm_serv_status->success_counts,
+                    shm_serv_status->process_counts,
+                    shm_serv_status->reading_counts, shm_serv_status->sending_counts,
+                    shm_serv_status->active_counts - shm_serv_status->reading_counts -
+                    shm_serv_status->sending_counts, ( sum_cs / 3 ) );
 
-    shm_unlock ( _shm_epoll_status );
+    shm_unlock ( _shm_serv_status );
 
     network_send ( epd, temp_buf, len );
     network_be_end ( epd );

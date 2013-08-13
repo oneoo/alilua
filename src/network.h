@@ -1,6 +1,5 @@
 #include <errno.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <sys/uio.h>
 #include <sys/sendfile.h>
 #include <netinet/in.h>
@@ -35,7 +34,7 @@
 #define STEP_ASYNC 7
 #define STEP_ERROR 8
 
-shm_t *_shm_epoll_status;
+shm_t *_shm_serv_status;
 
 typedef struct _epdata_t {
     void *se_ptr;
@@ -93,7 +92,7 @@ void network_send_error ( epdata_t *epd, int code, const char *msg );
 void network_send_status ( epdata_t *epd );
 static void network_end_process ( epdata_t *epd );
 int setnonblocking ( int fd );
-void sync_epoll_status();
+void sync_serv_status();
 
 static int network_be_read ( se_ptr_t *ptr );
 static int network_be_write ( se_ptr_t *ptr );
@@ -105,7 +104,7 @@ void network_be_end ( epdata_t *epd );
 
 static int is_daemon = 0;
 
-static int epoll_fd = -1;
+static int loop_fd = -1;
 static int has_error_for_exit = 0;
 
 typedef struct {
@@ -120,10 +119,10 @@ typedef struct {
 
     int sec_process_counts[5];
     time_t ptime;
-} epoll_status_t;
+} serv_status_t;
 
-epoll_status_t epoll_status;
-epoll_status_t *shm_epoll_status;
+serv_status_t serv_status;
+serv_status_t *shm_serv_status;
 
 static const char *DAYS_OF_WEEK[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static const char *MONTHS_OF_YEAR[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
@@ -134,9 +133,8 @@ char now_date[100];
 static void free_epd ( epdata_t *epd );
 static void free_epd_request ( epdata_t *epd );
 void close_client ( epdata_t *epd );
-static void *fd_epoll_checker ( void *data );
 static int ( *process_func ) ( epdata_t *epd, int thread_at );
-void network_worker ( void *_process_func, int work_thread_count );
+void network_worker ( void *_process_func, int work_thread_count, int process_at );
 
 static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
 int gzip_iov ( int mode, struct iovec *iov, int iov_count, int *_diov_count );

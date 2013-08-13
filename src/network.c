@@ -74,31 +74,44 @@ int network_send ( epdata_t *epd, const char *data, int _len )
 
     int len = _len;
 
-    if ( epd->response_content_length + len > epd->iov_buf_count * EP_D_BUF_SIZE ) {
-        len = epd->iov_buf_count * EP_D_BUF_SIZE - epd->response_content_length;
+    if ( !epd->iov[epd->iov_buf_count].iov_base ) {
+        epd->iov[epd->iov_buf_count].iov_base = malloc ( EP_D_BUF_SIZE );
+
+        if ( epd->iov[epd->iov_buf_count].iov_base == NULL ) {
+            return 0;
+        }
+
+        epd->iov[epd->iov_buf_count].iov_len = 0;
     }
 
+    if ( epd->iov[epd->iov_buf_count].iov_len + len > EP_D_BUF_SIZE ) {
+        len = EP_D_BUF_SIZE - epd->iov[epd->iov_buf_count].iov_len;
+
+        if ( len > _len ) {
+            len = _len;
+        }
+    }
+
+
     if ( len > 0 ) {
-        memcpy ( epd->iov[epd->iov_buf_count].iov_base + ( epd->response_content_length %
-                 EP_D_BUF_SIZE ), data, len );
+        memcpy ( epd->iov[epd->iov_buf_count].iov_base + epd->iov[epd->iov_buf_count].iov_len,
+                 data, len );
         epd->iov[epd->iov_buf_count].iov_len += len;
         epd->response_content_length += len;
         _len -= len;
     }
 
     if ( _len > 0 ) {
-        epd->iov[epd->iov_buf_count + 1].iov_base = malloc ( EP_D_BUF_SIZE );
-
-        if ( epd->iov[epd->iov_buf_count + 1].iov_base == NULL ) {
+        if ( epd->iov_buf_count + 1 > _MAX_IOV_COUNT ) {
             return 0;
         }
 
-        epd->iov[epd->iov_buf_count + 1].iov_len = 0;
         epd->iov_buf_count += 1;
 
-        if ( epd->iov_buf_count + 1 < _MAX_IOV_COUNT ) {
-            return network_send ( epd, data + len, _len );
-        }
+        epd->iov[epd->iov_buf_count].iov_base = NULL;
+        epd->iov[epd->iov_buf_count].iov_len = 0;
+
+        return network_send ( epd, data + len, _len );
     }
 
     return 1;
@@ -160,10 +173,10 @@ void close_client ( epdata_t *epd )
     }
 
     if ( epd->status == STEP_READ ) {
-        epoll_status.reading_counts--;
+        serv_status.reading_counts--;
 
     } else if ( epd->status == STEP_SEND ) {
-        epoll_status.sending_counts--;
+        serv_status.sending_counts--;
     }
 
     se_delete ( epd->se_ptr );
@@ -171,7 +184,7 @@ void close_client ( epdata_t *epd )
     epd->timeout_ptr = NULL;
 
     if ( epd->fd > -1 ) {
-        epoll_status.active_counts--;
+        serv_status.active_counts--;
         close ( epd->fd );
         epd->fd = -1;
     }
@@ -249,18 +262,18 @@ void network_be_end ( epdata_t *epd )  // for lua function die
     //printf ( "network_be_end %d\n" , ((se_ptr_t*)epd->se_ptr)->fd );
     update_timeout ( epd->timeout_ptr, STEP_SEND_TIMEOUT );
     se_be_write ( epd->se_ptr, network_be_write );
-    epoll_status.success_counts++;
+    serv_status.success_counts++;
     epd->status = STEP_SEND;
-    epoll_status.sending_counts++;
+    serv_status.sending_counts++;
 
     if ( epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL
          && epd->response_sendfile_fd == -1 ) {
-        epoll_status.sending_counts--;
+        serv_status.sending_counts--;
         network_send_error ( epd, 417, "" );
 
     } else if ( epd->response_sendfile_fd == -2 ) {
         epd->response_sendfile_fd = -1;
-        epoll_status.sending_counts--;
+        serv_status.sending_counts--;
         network_send_error ( epd, 404, "File Not Found!" );
 
     } else {
@@ -337,7 +350,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
             if ( epd->iov[0].iov_base == NULL ) {
                 epd->keepalive = 0;
                 network_end_process ( epd );
-                epoll_status.sending_counts--;
+                serv_status.sending_counts--;
                 return;
             }
 
@@ -376,7 +389,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
 
         if ( epd->response_content_length == 0 ) {
             network_end_process ( epd );
-            epoll_status.sending_counts--;
+            serv_status.sending_counts--;
 
         } else {
             epd->response_buf_sended = 0;
@@ -391,10 +404,10 @@ static void timeout_handle ( void *ptr )
     epdata_t *epd = ptr;
 
     if ( epd->status == STEP_READ ) {
-        epoll_status.reading_counts--;
+        serv_status.reading_counts--;
 
     } else if ( epd->status == STEP_SEND ) {
-        epoll_status.sending_counts--;
+        serv_status.sending_counts--;
     }
 
     epd->timeout_ptr = NULL;
@@ -421,7 +434,7 @@ static int network_be_read ( se_ptr_t *ptr )
             epd->status = STEP_FINISH;
             network_send_error ( epd, 503, "memory error!" );
             close_client ( epd );
-            epoll_status.reading_counts--;
+            serv_status.reading_counts--;
             return 0;
         }
 
@@ -436,7 +449,7 @@ static int network_be_read ( se_ptr_t *ptr )
         } else {
             network_send_error ( epd, 503, "memory error!" );
             close_client ( epd );
-            epoll_status.reading_counts--;
+            serv_status.reading_counts--;
             return 0;
         }
 
@@ -460,7 +473,7 @@ static int network_be_read ( se_ptr_t *ptr )
                 network_send_error ( epd, 503, "buf error!" );
                 close_client ( epd );
                 epd = NULL;
-                epoll_status.reading_counts--;
+                serv_status.reading_counts--;
                 break;
             }
 
@@ -468,7 +481,7 @@ static int network_be_read ( se_ptr_t *ptr )
         }
 
         if ( epd->status != STEP_READ ) {
-            epoll_status.reading_counts++;
+            serv_status.reading_counts++;
             epd->status = STEP_READ;
             epd->data_len = n;
             epd->start_time = longtime();
@@ -546,7 +559,7 @@ static int network_be_read ( se_ptr_t *ptr )
                 network_send_error ( epd, 411, "" );
                 close_client ( epd );
                 epd = NULL;
-                epoll_status.reading_counts--;
+                serv_status.reading_counts--;
 
                 break;
             }
@@ -617,7 +630,7 @@ static int network_be_read ( se_ptr_t *ptr )
                 if ( i > 11 && strncmp ( "/serv-status", uri, i ) == 0 ) {
                     epd->process_timeout = 0;
                     network_send_status ( epd );
-                    epoll_status.reading_counts--;
+                    serv_status.reading_counts--;
                     break;
                 }
             }
@@ -626,11 +639,11 @@ static int network_be_read ( se_ptr_t *ptr )
             se_be_pri ( epd->se_ptr, NULL ); // be wait
 
             if ( epd->status == STEP_READ ) {
-                epoll_status.reading_counts--;
+                serv_status.reading_counts--;
                 epd->status = STEP_PROCESS;
 
-                epoll_status.sec_process_counts[ ( now ) % 5]++;
-                epoll_status.process_counts++;
+                serv_status.sec_process_counts[ ( now ) % 5]++;
+                serv_status.process_counts++;
                 epd->method = NULL;
                 epd->uri = NULL;
                 epd->host = NULL;
@@ -708,7 +721,7 @@ static int network_be_write ( se_ptr_t *ptr )
                 if ( epd->response_buf_sended + n >= epd->response_content_length ) {
                     //printf("%ld sended %ld\n", epd->response_content_length, epd->response_buf_sended+n);
                     network_end_process ( epd );
-                    epoll_status.sending_counts--;
+                    serv_status.sending_counts--;
                     break;
                 }
 
@@ -722,7 +735,7 @@ static int network_be_write ( se_ptr_t *ptr )
                     int set = 0;
                     setsockopt ( epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof ( int ) );
                     network_end_process ( epd );
-                    epoll_status.sending_counts--;
+                    serv_status.sending_counts--;
                     break;
                 }
             }
@@ -738,7 +751,7 @@ static int network_be_write ( se_ptr_t *ptr )
                 }
 
                 network_end_process ( epd );
-                epoll_status.sending_counts--;
+                serv_status.sending_counts--;
                 break;
             }
         }
@@ -752,12 +765,16 @@ static int network_be_accept ( se_ptr_t *ptr )
     struct sockaddr_in remote_addr;
     int addr_len = 0;
 
-    while ( acc_trys++ < 2 ) {
+    while ( acc_trys++ < 3 ) {
         client_fd = accept ( server_fd, ( struct sockaddr * ) &remote_addr, &addr_len );
 
-        if ( client_fd < 0 && ( errno == EAGAIN || errno == EWOULDBLOCK ) ) {
-            continue;
+        if ( client_fd < 0 && errno != EAGAIN && errno != EWOULDBLOCK ) {
+            break;
 
+        }
+
+        if ( client_fd < 0 ) {
+            continue;
         }
 
         if ( !setnonblocking ( client_fd ) ) {
@@ -786,13 +803,13 @@ static int network_be_accept ( se_ptr_t *ptr )
         epd->process_timeout = 0;
         epd->iov_buf_count = 0;
 
-        epd->se_ptr = se_add ( epoll_fd, client_fd, epd );
+        epd->se_ptr = se_add ( loop_fd, client_fd, epd );
         epd->timeout_ptr = add_timeout ( epd, STEP_WAIT_TIMEOUT, timeout_handle );
 
         se_be_read ( epd->se_ptr, network_be_read );
 
-        epoll_status.active_counts++;
-        epoll_status.connect_counts++;
+        serv_status.active_counts++;
+        serv_status.connect_counts++;
 
         acc_trys = 0;
     }
@@ -807,38 +824,40 @@ static int without_jobs()
         //close_client ( epd );
     }
 
-    sync_epoll_status();
+    sync_serv_status();
 
     do_other_jobs();
 }
 
-void network_worker ( void *_process_func, int process_count )
+void network_worker ( void *_process_func, int process_count, int process_at )
 {
     signal ( SIGPIPE, SIG_IGN );
 
-    _shm_epoll_status = shm_malloc ( sizeof ( epoll_status_t ) );
+    _shm_serv_status = shm_malloc ( sizeof ( serv_status_t ) );
 
-    if ( _shm_epoll_status == NULL ) {
+    if ( _shm_serv_status == NULL ) {
         perror ( "shm malloc failed\n" );
         signal ( SIGHUP, SIG_IGN );
         exit ( 1 );
     }
 
-    shm_epoll_status = _shm_epoll_status->p;
-    memcpy ( shm_epoll_status, &epoll_status, sizeof ( epoll_status_t ) );
+    shm_serv_status = _shm_serv_status->p;
+    memcpy ( shm_serv_status, &serv_status, sizeof ( serv_status_t ) );
 
     process_func = _process_func;
 
     init_mime_types();
 
-    epoll_fd = se_create ( EPD_POOL_SIZE );
-    set_epoll_fd ( epoll_fd, process_count );
+    loop_fd = se_create ( EPD_POOL_SIZE );
+    set_loop_fd ( loop_fd, process_count );
 
-    se_ptr_t *se = se_add ( epoll_fd, server_fd, NULL );
+    se_ptr_t *se = se_add ( loop_fd, server_fd, NULL );
+
     se_be_read ( se, network_be_accept );
 
     while ( 1 ) {
-        se_loop ( epoll_fd, EPOLL_WAITOUT, without_jobs );
+
+        se_loop ( loop_fd, EPOLL_WAITOUT, without_jobs );
 
         if ( checkProcessForExit() || has_error_for_exit ) {
             break;

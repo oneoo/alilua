@@ -34,7 +34,7 @@ void signal_handler ( int sig );
 void daemonize();
 void setProcessUser ( char *user, char *group );
 char *getarg ( char *key );
-int forkProcess ( void ( *func ) () );
+int forkProcess ( void ( *func ) (int i) );
 void safeProcess();
 void waitForChildProcessExit();
 

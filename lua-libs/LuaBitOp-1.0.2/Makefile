@@ -3,7 +3,7 @@
 # To compile with MinGW please run: mingw32-make -f Makefile.mingw
 
 # Include path where lua.h, luaconf.h and lauxlib.h reside:
-INCLUDES= -I/usr/local/include
+INCLUDES= -I/usr/local/include -I/usr/local/include/luajit-2.0
 
 DEFINES=
 # Use this for the old ARM ABI with swapped FPA doubles.

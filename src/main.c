@@ -406,7 +406,7 @@ int worker_process ( epdata_t *epd, int thread_at )
     return 0;
 }
 
-static void worker_main()
+static void worker_main ( int at )
 {
 
     attach_on_exit ( on_exit_handler );
@@ -416,8 +416,8 @@ static void worker_main()
     setProcTitle ( "worker process", 0 );
     _process_chdir = process_chdir;
 
-    /// 进入 epoll 处理循环
-    network_worker ( worker_process, process_count );
+    /// 进入 loop 处理循环
+    network_worker ( worker_process, process_count, at );
 
     exit ( 0 );
 }
@@ -593,7 +593,7 @@ int main ( int argc, char *argv[] )
 
         } else {
             active_cpu ( 0 );
-            new_thread ( worker_main );
+            new_thread_i ( worker_main, 0 );
         }
     }
 

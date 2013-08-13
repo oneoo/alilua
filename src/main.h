@@ -6,7 +6,6 @@
 #include <time.h>
 #include <sys/timeb.h>
 #include <math.h>
-#include <sys/epoll.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
