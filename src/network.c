@@ -155,6 +155,11 @@ void free_epd_request ( epdata_t *epd )  /// for keepalive
         epd->iov[i].iov_base = NULL;
     }
 
+    epd->response_header_length = 0;
+    epd->response_content_length = 0;
+    epd->iov_buf_count = 0;
+    epd->response_buf_sended = 0;
+
     epd->contents = NULL;
     epd->data_len = 0;
     epd->header_len = 0;
@@ -236,11 +241,6 @@ void network_end_process ( epdata_t *epd )
                                 epd->user_agent ? epd->user_agent : "-",
                                 ( float ) ( ttime - epd->start_time ) / 1000 );
 
-    epd->response_header_length = 0;
-    epd->response_content_length = 0;
-    epd->iov_buf_count = 0;
-    epd->response_buf_sended = 0;
-
     if ( epd->keepalive == 1 ) {
         update_timeout ( epd->timeout_ptr, STEP_WAIT_TIMEOUT );
         free_epd_request ( epd );
@@ -280,7 +280,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
         int gzip_data = 0;
 
         //printf("%d %s\n", epd->response_content_length, epd->iov[1].iov_base);
-        if ( epd->response_content_length > 1024 && epd->iov[1].iov_base &&
+        if ( epd->response_content_length > 1024000 && epd->iov[1].iov_base &&
              !is_binary ( epd->iov[1].iov_base, epd->iov[1].iov_len )
            ) {
             char *p = NULL;
@@ -330,7 +330,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
             epd->response_header_length = len;
 
         } else {
-            ( ( char * ) ( epd->iov[0].iov_base ) ) [epd->response_header_length] = '\0';
+            //( ( char * ) ( epd->iov[0].iov_base ) ) [epd->response_header_length] = '\0';
             memcpy ( temp_buf, epd->iov[0].iov_base, epd->response_header_length );
             len = epd->response_header_length + sprintf ( temp_buf + epd->response_header_length,
                     "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n",
@@ -400,7 +400,6 @@ void network_be_end ( epdata_t *epd )  // for lua function die
 
 static void timeout_handle ( void *ptr )
 {
-    //printf ( "timeout_handle\n" );
     epdata_t *epd = ptr;
 
     if ( epd->status == STEP_READ ) {
@@ -409,8 +408,6 @@ static void timeout_handle ( void *ptr )
     } else if ( epd->status == STEP_SEND ) {
         serv_status.sending_counts--;
     }
-
-    epd->timeout_ptr = NULL;
 
     close_client ( epd );
 }
@@ -599,6 +596,7 @@ static int network_be_read ( se_ptr_t *ptr )
             epd->response_sendfile_fd = -1;
 
             epd->iov[0].iov_base = NULL;
+            epd->iov[0].iov_len = 0;
             epd->iov[1].iov_base = NULL;
             epd->iov[1].iov_len = 0;
 
@@ -697,6 +695,7 @@ static int network_be_write ( se_ptr_t *ptr )
                     int all = 0;
                     send_iov_count = 0;
                     size_t sended = 0;
+                    size_t be_len = 0;
 
                     for ( j = 0; j < epd->iov_buf_count; j++ ) {
                         sended += epd->iov[j].iov_len;
@@ -708,13 +707,23 @@ static int network_be_write ( se_ptr_t *ptr )
 
                             send_iov[send_iov_count] = epd->iov[j];
                             send_iov_count++;
+                            be_len += epd->iov[j].iov_len;
                         }
 
                     }
 
-                    send_iov[0].iov_base += k;
-                    send_iov[0].iov_len -= k;
+                    if ( k > 0 ) {
+                        send_iov[0].iov_base += k;
+                        send_iov[0].iov_len -= k;
+                    }
+
                     send_iov[send_iov_count + 1].iov_base = NULL;
+
+                    if ( be_len < 1 ) {
+                        printf ( "%d writev error! %d %ld\n", epd->fd, send_iov_count, be_len );
+                        exit ( 1 );
+                    }
+
                     n = writev ( epd->fd, send_iov, send_iov_count );
                 }
 

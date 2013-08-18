@@ -18,5 +18,5 @@ function process(headers, _GET, _COOKIE, _POST)
 		dofile(router) die()
 	end)
 	
-	if e then print_error(e) end
+	if e then print_error(__epd__, e) end
 end

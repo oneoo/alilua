@@ -71,6 +71,7 @@ typedef struct {
     void       *next;
 } dns_cache_item_t;
 
+#define _SENDBUF_SIZE 3857
 typedef struct {
     int fd;
     uint8_t use_ssl;
@@ -82,7 +83,7 @@ typedef struct {
     void *ptr;
     lua_State *L;
     const u_char *send_buf;
-    u_char _send_buf[3857];// with size align / 60
+    u_char _send_buf[_SENDBUF_SIZE];// with size align / 60
     size_t send_buf_len;
     size_t send_buf_ed;
     u_char *send_buf_need_free;

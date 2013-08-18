@@ -73,7 +73,7 @@ int cosocket_be_connected ( se_ptr_t *ptr )
         {
             se_delete ( cok->ptr );
             cok->ptr = NULL;
-//printf("0x%x close fd %d   l:%d\n", cok->L, cok->fd, __LINE__);
+//printf("0x%p close fd %d   l:%d\n", cok->L, cok->fd, __LINE__);
             connection_pool_counter_operate ( cok->pool_key, -1 );
             close ( cok->fd );
             cok->fd = -1;
@@ -169,7 +169,7 @@ static int lua_co_connect ( lua_State *L )
             return 2;
         }
 
-//printf(" 0x%x connect to %s\n", L, lua_tostring(L, 2));
+//printf(" 0x%p connect to %s\n", L, lua_tostring(L, 2));
         size_t host_len = 0;
         const char *host = lua_tolstring ( L, 2, &host_len );
 
@@ -444,7 +444,7 @@ static int lua_co_send ( lua_State *L )
             cok->send_buf_len = lua_calc_strlen_in_table ( L, 2, 2, 1 /* strict */ );
 
             if ( cok->send_buf_len > 0 ) {
-                if ( cok->send_buf_len <= sizeof ( cok->_send_buf ) ) {
+                if ( cok->send_buf_len < _SENDBUF_SIZE ) {
                     cok->send_buf_need_free = NULL;
                     lua_copy_str_in_table ( L, 2, cok->_send_buf );
                     cok->send_buf = cok->_send_buf;
@@ -545,6 +545,7 @@ init_read_buf:
     }
 
     if ( n == 0 || ( n < 0 && errno != EAGAIN && errno != EWOULDBLOCK ) ) {
+        int rfd = cok->fd;
         /// socket closed
         del_in_timeout_link ( cok );
         {
@@ -716,6 +717,7 @@ int lua_co_read_ ( cosocket_t *cok )
 
                 if ( cok->last_buf == bf ) {
                     cok->last_buf = NULL;
+                    cok->read_buf = NULL;
                 }
 
                 free ( bf->buf );
@@ -1071,7 +1073,7 @@ int lua_f_coroutine_wait ( lua_State *L )
         }
 
         char key[32];
-        sprintf ( key, "%x__be_resume", JL );
+        sprintf ( key, "%p__be_resume", JL );
         lua_pushlightuserdata ( JL, L );
         lua_setglobal ( JL, key );
         lua_pop ( L, 1 );
@@ -1082,7 +1084,7 @@ int lua_f_coroutine_wait ( lua_State *L )
 int lua_f_coroutine_resume_waiting ( lua_State *L )
 {
     char key[32];
-    sprintf ( key, "%x__be_resume", L );
+    sprintf ( key, "%p__be_resume", L );
     lua_getglobal ( L, key );
 
     if ( LUA_TLIGHTUSERDATA == lua_type ( L, -1 ) ) {

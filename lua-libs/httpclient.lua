@@ -13,6 +13,8 @@ local cosocket = cosocket
 local ngx = ngx
 local tcp
 local base64_encode = base64_encode
+local insert=table.insert
+local concat=table.concat
 
 if ngx and ngx.say then
 	tcp = ngx.socket.tcp
@@ -116,7 +118,7 @@ local function httprequest(url, params)
 					rawset(contents, i, k..'='..tostring(v))
 					i = i+1
 				end
-				contents = table.concat(contents, '&')
+				contents = concat(contents, '&')
 			else
 				boundary = '--'..base64_encode(os.time()..math.random()):sub(1,16)
 				for k,v in pairs(params.data) do
@@ -130,7 +132,7 @@ local function httprequest(url, params)
 					end
 					i = i+1
 				end
-				contents = '--'..boundary..'\r\n'..table.concat(contents, '\r\n--'..boundary..'\r\n')..'\r\n--'..boundary..'--'
+				contents = '--'..boundary..'\r\n'..concat(contents, '\r\n--'..boundary..'\r\n')..'\r\n--'..boundary..'--'
 			end
 		else
 			contents = params.data
@@ -143,33 +145,33 @@ local function httprequest(url, params)
 							'Accept: */*',
 							}
 	if zlib then
-		table.insert(request_headers, 'Accept-Encoding: gzip,deflate')
+		insert(request_headers, 'Accept-Encoding: gzip,deflate')
 	end
 	if user and pw then
-		table.insert(request_headers, 'Authorization: Basic ' .. base64_encode(user..':'..pw))
+		insert(request_headers, 'Authorization: Basic ' .. base64_encode(user..':'..pw))
 	end
 	if params.header then
 		if type(params.header) == 'table' then
 			local k,v
 			for k,v in ipairs(params.header) do
-				table.insert(request_headers, v)
+				insert(request_headers, v)
 			end
 		else
-			table.insert(request_headers, tostring(params.header))
+			insert(request_headers, tostring(params.header))
 		end
 	end
 	if contents then
 		if is_post then
-			table.insert(request_headers, 'Content-Type: application/x-www-form-urlencoded')
+			insert(request_headers, 'Content-Type: application/x-www-form-urlencoded')
 		elseif is_multipart then
-			table.insert(request_headers, 'Content-Type: multipart/form-data; boundary='..boundary)
+			insert(request_headers, 'Content-Type: multipart/form-data; boundary='..boundary)
 		end
-		table.insert(request_headers, 'Content-Length: '..#contents+send_file_length_sum)
+		insert(request_headers, 'Content-Length: '..#contents+send_file_length_sum)
 	end
 	
 	--send request
-	local bytes, err = sock:send(table.concat(request_headers, '\r\n')..'\r\n\r\n')
-	--print(table.concat(request_headers, '\r\n')..'\r\n\r\n')
+	local bytes, err = sock:send(concat(request_headers, '\r\n')..'\r\n\r\n')
+	--print(concat(request_headers, '\r\n')..'\r\n\r\n')
 	if err then
 		sock:close()
 		return nil, err
@@ -294,11 +296,17 @@ local function httprequest(url, params)
 			local read_length = tonumber(line, 16)
 			if read_length == 0 then rterr = nil break end
 			if not read_length or read_length < 1 then break end
-			buf,err = sock:receive(read_length)
-			if buf then
-				rawset(bodys, i, buf)
-				i = i+1
+			
+			while read_length > 0 do
+				local rl = read_length
+				if rl > 4096 then rl = 4096 read_length = read_length - rl end
+				buf,err = sock:receive(rl)
+				if buf then
+					rawset(bodys, i, buf)
+					i = i+1
+				end
 			end
+			
 			line,err = sock:receive('*l')
 		end
 	else
@@ -337,11 +345,11 @@ local function httprequest(url, params)
 			bodys = stream:read('*a')
 			stream:close()
 		elseif deflated then
-			bodys = zlib.decompress(table.concat(bodys),-8)
+			bodys = zlib.decompress(concat(bodys),-8)
 		end
 	end
 	
-	if type(bodys) == 'table' then bodys = table.concat(bodys) end
+	if type(bodys) == 'table' then bodys = concat(bodys) end
 	
 	return bodys, headers, rterr
 end

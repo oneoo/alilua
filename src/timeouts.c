@@ -61,7 +61,7 @@ int check_timeouts()
         if ( now >= n->timeout ) { // timeout
             n->handle ( n->ptr );
 
-            delete_timeout ( n );
+            //delete_timeout ( n );
         }
     }
 

@@ -201,44 +201,74 @@ function jsonrpc_handle(data, apis)
 	end
 end
 
-local env = {null=null,io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
-			httpclient=httpclient,
+function readfile(f)
+	local f,e = io.open(f)
+	local r
+	if f then
+		r = f:read('*all')
+		f:close()
+	end
+	return r,e
+end
+
+local env = {null=null,error=error,io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
+			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
 			cosocket=cosocket,allthreads=allthreads,newthread=newthread,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
-			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,file_exists=file_exists,crypto=crypto,iconv=iconv,
+			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,_file_exists=file_exists,crypto=crypto,iconv=iconv,
 			trim=trim,strip=strip,explode=explode,implode=implode,escape=escape,escape_uri=escape_uri,unescape_uri=unescape_uri,
 			nl2br=_G['string-utils'].nl2br,
 			base64_encode=base64_encode,base64_decode=base64_decode,printf=printf,sprintf=sprintf,
-			hook=hook,get_hooks=get_hooks,host_route=host_route}
-local env_pairs = {}
-local k,v,i=nil,nil,1 for k,v in pairs(env) do env_pairs[i]={k=k,v=v} i=i+1 end env_pairs.c = i-1
-function get_env() local t,i,k,v={},nil,nil,nil for i=1,env_pairs.c do t[env_pairs[i].k]=env_pairs[i].v end return t end
+			hook=hook,get_hooks=get_hooks,host_route=host_route,_echo=echo,_die=die,_sendfile=sendfile,_header=header,_clear_header=clear_header,_loadfile=loadfile,_dofile=dofile,_loadtemplate=loadtemplate,_setfenv=setfenv,_setmetatable=setmetatable,_rawset=rawset,pcall=pcall,check_timeout=check_timeout,_setcookie=setcookie,_get_post_body=get_post_body,_dump=dump,print_error=print_error,CodeCache=CodeCache,_readfile=readfile,_loadstring=loadstring}
 
-function main(__epd, headers, _GET, _COOKIE, _POST)
-	local box = {}--get_env()
-	local __epd__ = __epd
-	box.headers = headers
-	box._GET = _GET
-	box._POST = _POST
-	box.echo = function(...) check_timeout(__epd__) echo(__epd__, ...) end
-	box.print = box.echo
-	box.printf = function(...) check_timeout(__epd__) echo(__epd__, sprintf(...)) end
-	box.dump = function(o, p) local r = dump(o) if p then box.echo('a',r) r = '' end return r end
-	box.sendfile = function(f) sendfile(__epd__, f) end
-	box.header = function(s) header(__epd__, s) end
-	box.loadtemplate = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return loadtemplate(f) end
-	box.dotemplate = function(f, ir)
-		local f, e, c = box.loadtemplate(f, ir)
-		if f then
-			setfenv(f, box)
-			return pcall(f)
-		else
-			box.print(e)
-		end
-		return f, e, c
+
+function initbox()
+	function echo(...)
+		check_timeout(__epd__)
+		return _echo(__epd__, ...)
 	end
-	box.setcookie = function(name, value, expire, path, domain) header(__epd__, setcookie(name, value, expire, path, domain)) end
-	box.session = function()
+	print = echo
+	
+	function printf(...)
+		check_timeout(__epd__)
+		return _echo(__epd__, sprintf(...))
+	end
+	
+	function file_exists(f)
+		if not f:startsWith(__root) then f = __root .. f end
+		return _file_exists(f)
+	end
+	
+	function sendfile(f)
+		if not f:startsWith(__root) then f = __root .. f end
+		return _sendfile(__epd__, f)
+	end
+	
+	function header(s)
+		return _header(__epd__, s)
+	end
+	
+	function clear_header()
+		return _clear_header(__epd__)
+	end
+	
+	function die(...)
+		if ... then
+			echo(...)
+		end
+		if __session then
+			cache_set(_COOKIE['_SESSION'], __session, 1800)
+		end
+		_die(__epd__)
+	end
+	
+	function get_post_body() return _get_post_body(__epd__) end
+	
+	function setcookie(name, value, expire, path, domain)
+		_header(__epd__, _setcookie(name, value, expire, path, domain))
+	end
+	
+	function session()
 		local t = nil
 		if _COOKIE['_SESSION'] then
 			t = cache_get(_COOKIE['_SESSION'])
@@ -247,66 +277,112 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 			if not _COOKIE['_SESSION'] then
 				_COOKIE['_SESSION'] = random_string(48)
 			end
-			box.setcookie('_SESSION', _COOKIE['_SESSION'])
+			setcookie('_SESSION', _COOKIE['_SESSION'])
 			t = {}
 		end
-		setmetatable(t, {
+		_setmetatable(t, {
 			__newindex = function(t,k,v)
-				rawset(t, k, v)
-				box.__session = t
+				_rawset(t, k, v)
+				__session = t
 			end
 		})
 		return t
 	end
-	box.check_timeout = function(s) check_timeout(__epd__) end
-	box.clear_header = function() clear_header(__epd__) end
-	box.die = function(...)
-		if box.__session then
-			cache_set(_COOKIE['_SESSION'], box.__session, 1800)
-		end
-		if ... then box.echo(...) end
-		die(__epd__)
-	end
-	box.get_post_body = function() return get_post_body(__epd__) end
-	box.print_error = function(e) print_error(__epd__, e) end
-	box.file_exists = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return file_exists(f) end
-	box.sendfile = function(f) if not f:startsWith(box.__root) then f = box.__root .. f end return sendfile(__epd__, f) end
-	box.loadfile = function(f)
-		if not f:startsWith(box.__root) then f = box.__root .. f end
-		local r = CodeCache[f]
-		local err
-		if not r then
-			r = cache_get('__cache_'..f)
-			if not r then
-				r, err = loadfile(f)
-				if r then cache_set('__cache_'..f, string.dump(r), 60) end
-			else
-				r, err = loadstring(r)
-			end
-			CodeCache[f] = r
-		end
-		if r then setfenv(r, box) end
-		return r, err
-	end
-	box.dofile = function(f) local r,e = box.loadfile(f) if r then setfenv(r, box) return r() else error(e) end end
-	box.jsonrpc_handle = function(...) setfenv(jsonrpc_handle, box) jsonrpc_handle(...) end
 	
-	box.__fun_hooks = {}
-	box.__hooked = {}
-	box.hook = function(f, h, i)
-		if type(f) ~= 'function' or type(h) ~= 'function' then return false end
-		if not box.__hooked[f] then return false end
-		f = box.__hooked[f]
-		if not box.__fun_hooks[f] then box.__fun_hooks[f] = {} end
-		if i then
-			table.insert(box.__fun_hooks[f], i, h)
+	function dump(o, p)
+		local r = _dump(o)
+		if p then
+			echo(r)
+			r = ''
+		end
+		return r
+	end
+	
+	function loadstring(s)
+		local f,e = _loadstring(s)
+		if f then
+			_setfenv(f, __box__)
+		end
+		return f, e
+	end
+	
+	function loadfile(f)
+		local f1,e = CodeCache[f]
+		if not f1 then
+			f1,e = _readfile(__root .. f)
+			CodeCache[f] = f1
+		end
+		if f1 then
+			f1,e = loadstring(f1)
+			if f1 then
+				_setfenv(f1, __box__)
+			end
+		end
+		return f1,e
+	end
+	
+	function dofile(f)
+		local f1,e = loadfile(f)
+		if f1 then
+			return f1()
 		else
-			table.insert(box.__fun_hooks[f], h)
+			error(e)
+		end
+		return nil,e
+	end
+	
+	function loadtemplate(f)
+		if not f:startsWith(__root) then f = __root .. f end
+		return _loadtemplate(f)
+	end
+	
+	function dotemplate(f, ir)
+		local f1, e, c = loadtemplate(f, ir)
+		if f1 then
+			_setfenv(f1, __box__)
+			f1()
+			f1 = true
+		else
+			print(e)
+		end
+		return f1, e, c
+	end
+	
+	function jsonrpc_handle(...)
+		_setfenv(_jsonrpc_handle, __box__)
+		_jsonrpc_handle(...)
+	end
+	
+	__fun_hooks = {}
+	__hooked = {}
+	function hook(f, h, i)
+		if type(f) ~= 'function' or type(h) ~= 'function' then return false end
+		if not __hooked[f] then return false end
+		f = __hooked[f]
+		if not __fun_hooks[f] then __fun_hooks[f] = {} end
+		if i then
+			table.insert(__fun_hooks[f], i, h)
+		else
+			table.insert(__fun_hooks[f], h)
 		end
 	end
-	box.get_hooks = function(f)
-		return box.__fun_hooks[box.__hooked[f]]
+	function get_hooks(f)
+		return __fun_hooks[__hooked[f]]
 	end
+end
+
+function main(__epd, headers, _GET, _COOKIE, _POST)
+	local box = {}--get_env()
+	box.__epd__ = __epd
+	box.__box__ = box
+	box.headers = headers
+	box._GET = _GET
+	box._POST = _POST
+	box._COOKIE = _COOKIE
+	if not box._COOKIE then box._COOKIE = {} end
+
+	setfenv(initbox, box)
+	initbox()
 
 	setmetatable(box, {
 		__index = function(t, k)
@@ -316,11 +392,12 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 		end,
 		-- for hooker
 		__newindex = function(t,k,v)
+			if k == '__epd__' or k == '__box__' then return false end
 			if type(v) == 'function' then
 				local _v = function(...)
 					local rts = {v(...)}
-					if box.__fun_hooks[v] then
-						for k,v in ipairs(box.__fun_hooks[v]) do
+					if t.__fun_hooks[v] then
+						for k,v in ipairs(t.__fun_hooks[v]) do
 							local _rts = {pcall(v, unpack(rts))}
 							if #_rts > 1 and _rts[1] == true then
 								table.remove(_rts, 1)
@@ -330,7 +407,7 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 					end
 					return unpack(rts)
 				end
-				box.__hooked[_v] = v
+				t.__hooked[_v] = v
 				return rawset(t, k, _v)
 			end
 			rawset(t, k, v)
@@ -348,5 +425,5 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	end
 	CodeCache['host-route.lua']()
 	setfenv(process, box)
-	process(headers, _GET, _COOKIE, _POST)
+	newthread(process, headers, _GET, _COOKIE, _POST)
 end
