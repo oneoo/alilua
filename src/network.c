@@ -280,7 +280,7 @@ void network_be_end ( epdata_t *epd )  // for lua function die
         int gzip_data = 0;
 
         //printf("%d %s\n", epd->response_content_length, epd->iov[1].iov_base);
-        if ( epd->response_content_length > 1024000 && epd->iov[1].iov_base &&
+        if ( epd->response_content_length > 1024 && epd->iov[1].iov_base &&
              !is_binary ( epd->iov[1].iov_base, epd->iov[1].iov_len )
            ) {
             char *p = NULL;
