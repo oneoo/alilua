@@ -36,6 +36,7 @@ module(...)
 _VERSION = '0.1'
 
 local function httprequest(url, params)
+	if not params then params = {} end
 	local chunk, protocol = url:match('^(([a-z0-9+]+)://)')
 	url = url:sub((chunk and #chunk or 0) + 1)
 
@@ -43,6 +44,8 @@ local function httprequest(url, params)
 	if not sock then
 		return nil, err
 	end
+	
+	if not params.pool_size then params.pool_size = 0 end
 	if params.pool_size then
 		if ngx then
 			sock:setkeepalive(60, params.pool_size)
@@ -299,11 +302,14 @@ local function httprequest(url, params)
 			
 			while read_length > 0 do
 				local rl = read_length
-				if rl > 4096 then rl = 4096 read_length = read_length - rl end
+				if rl > 4096 then rl = 4096 end
+				read_length = read_length - rl
 				buf,err = sock:receive(rl)
 				if buf then
 					rawset(bodys, i, buf)
 					i = i+1
+				else
+					break
 				end
 			end
 			
