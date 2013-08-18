@@ -139,7 +139,7 @@ function loadtemplate(f, is_return, init)
 	--print(concat(_codes))
 	_codes[_code_i] = ' return __HTMLS'
 	_cache[_f] = concat(_codes)
-	local codes, err = loadstring(_cache[_f], f)
+	local codes, err = loadstring(_cache[_f], _f)
 	if not codes then _cache[_f] = nil return nil, err, _codes end
 	_cache['h'] = true
 	

@@ -307,13 +307,14 @@ function initbox()
 	end
 	
 	function loadfile(f)
+		if not f:startsWith(__root) then f = __root .. f end
 		local f1,e = CodeCache[f]
 		if not f1 then
-			f1,e = _readfile(__root .. f)
+			f1,e = _readfile(f)
 			CodeCache[f] = f1
 		end
 		if f1 then
-			f1,e = loadstring(f1)
+			f1,e = loadstring(f1, f)
 			if f1 then
 				_setfenv(f1, __box__)
 			end
