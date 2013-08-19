@@ -1,7 +1,9 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#ifdef linux
 #include <sys/sendfile.h>
+#endif
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -86,6 +88,7 @@ char *url_decode ( char *str, int raw, size_t *new_length );
 char *stristr ( const char *str, const char *pat, int length );
 int network_bind ( char *addr, int port );
 int network_raw_send ( int client_fd, const char *contents, int length );
+int network_raw_sendfile ( int out_fd, int in_fd, off_t *offset, size_t count );
 char *network_raw_read ( int cfd, int *datas_len );
 int network_connect ( const char *ser, int port );
 void network_send_error ( epdata_t *epd, int code, const char *msg );

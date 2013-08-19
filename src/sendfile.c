@@ -1,4 +1,5 @@
 #include "network.h"
+#include <sys/stat.h>
 
 static char temp_buf[8192];
 
@@ -58,8 +59,9 @@ int network_sendfile ( epdata_t *epd, const char *path )
         return 1;
     }
 
+#ifdef linux
     int set = 1;
     setsockopt ( epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof ( int ) );
-
+#endif
     return 1;
 }

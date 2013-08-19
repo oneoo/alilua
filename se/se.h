@@ -15,6 +15,9 @@ typedef struct {
     void *func;
     void *data;
     long z; /// fix size to 32
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(BSD)
+    int mask;
+#endif
 } se_ptr_t;
 
 typedef int se_rw_proc_t ( se_ptr_t *ptr );

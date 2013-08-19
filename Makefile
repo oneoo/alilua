@@ -1,10 +1,10 @@
 CC = gcc
 OPTIMIZATION = -O3
-CFLAGS = $(OPTIMIZATION) -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE)
-DEBUG = -g -rdynamic -ggdb
+CFLAGS = -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE)
+DEBUG = -g -ggdb
 ifeq ($(LUAJIT),)
 ifeq ($(LUA),)
-LIBLUA = -llua
+LIBLUA = -llua -L/usr/lib -L/usr/local/lib
 else
 LIBLUA = -L$(LUA) -llua
 endif
@@ -47,7 +47,7 @@ zip:
 	git archive --format zip --prefix alilua/ -o alilua-`git log --date=short --pretty=format:"%ad" -1`.zip HEAD
 
 install:all
-	$(MAKE) DEBUG="";
+	$(MAKE) DEBUG=$(OPTIMIZATION);
 	strip alilua;
 	[ -d $(PREFIX) ] || mkdir $(PREFIX);
 	[ -d $(PREFIX)/lua-libs ] || mkdir $(PREFIX)/lua-libs;

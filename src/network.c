@@ -735,14 +735,17 @@ static int network_be_write ( se_ptr_t *ptr )
                 }
 
             } else {
-                n = sendfile ( epd->fd, epd->response_sendfile_fd, &epd->response_buf_sended,
-                               epd->response_content_length );
+                n = network_raw_sendfile ( epd->fd, epd->response_sendfile_fd,
+                                           &epd->response_buf_sended,
+                                           epd->response_content_length );
 
                 if ( epd->response_buf_sended >= epd->response_content_length ) {
                     close ( epd->response_sendfile_fd );
                     epd->response_sendfile_fd = -1;
+#ifdef linux
                     int set = 0;
                     setsockopt ( epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof ( int ) );
+#endif
                     network_end_process ( epd );
                     serv_status.sending_counts--;
                     break;
@@ -754,8 +757,10 @@ static int network_be_write ( se_ptr_t *ptr )
                 epd->keepalive = 0;
 
                 if ( epd->response_sendfile_fd > -1 ) {
+#ifdef linux
                     int set = 0;
                     setsockopt ( epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof ( int ) );
+#endif
                     close ( epd->response_sendfile_fd );
                 }
 

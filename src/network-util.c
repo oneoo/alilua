@@ -95,7 +95,7 @@ int network_raw_send ( int client_fd, const char *contents, int length )
             break;
         }
 
-        n = send ( client_fd, contents + len, length - len, MSG_DONTWAIT | MSG_NOSIGNAL );
+        n = send ( client_fd, contents + len, length - len, MSG_DONTWAIT );
 
         if ( n < 0 ) {
             if ( errno == EAGAIN || errno == EWOULDBLOCK ) {
@@ -162,6 +162,30 @@ char *network_raw_read ( int cfd, int *datas_len )
     }
 
     return datas;
+}
+
+
+int network_raw_sendfile ( int out_fd, int in_fd, off_t *offset, size_t count )
+{
+#if defined(__APPLE__) || defined(__FreeBSD__)
+    off_t my_count = count;
+    int rc;
+
+    // We have to do this loop nastiness, because mac os x fails with resource
+    // temporarily unavailable (per bug e8eddb51a8)
+    do {
+#if defined(__APPLE__)
+        rc = sendfile ( in_fd, out_fd, *offset, &my_count, NULL, 0 );
+#elif defined(__FreeBSD__)
+        rc = sendfile ( in_fd, out_fd, *offset, count, NULL, &my_count, 0 );
+#endif
+        *offset += my_count;
+    } while ( rc != 0 && errno == 35 );
+
+    return my_count;
+#else
+    return sendfile ( out_fd, in_fd, offset, count );
+#endif
 }
 
 void network_send_error ( epdata_t *epd, int code, const char *msg )

@@ -11,7 +11,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <asm/ioctls.h>
 #include <sys/un.h>
 #include <inttypes.h>
 #include <zlib.h>

@@ -34,6 +34,9 @@
 #define USER_FREE					free
 
 #include <sys/types.h>
+#ifndef ulong
+#define ulong unsigned long
+#endif
 
 typedef struct { 
 	unsigned long atime;

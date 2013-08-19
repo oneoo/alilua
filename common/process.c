@@ -1,5 +1,6 @@
 #include "process.h"
 
+#ifdef linux
 #define app_panic(format, args...) \
     do {    \
         printf(format, ## args);    \
@@ -41,9 +42,11 @@ static inline void set_cpu_mask ( pid_t pid, cpu_set_t *mask )
         //app_panic("Set cpu affinity failed.\n");
     }
 }
+#endif
 
 void active_cpu ( uint32_t active_cpu )
 {
+#ifdef linux
     cpu_set_t cpu_mask;
     int cpu_count = sysconf ( _SC_NPROCESSORS_ONLN );
 
@@ -62,6 +65,7 @@ void active_cpu ( uint32_t active_cpu )
 
     //get_cpu_mask(0, &cpu_mask);
     //print_cpu_mask(cpu_mask);
+#endif
 }
 
 void setProcTitle ( const char *title, int is_master )
@@ -87,8 +91,19 @@ char *initProcTitle ( int argc, char **argv )
 {
     _argc = argc;
     _argv = argv;
-    size_t n = readlink ( "/proc/self/exe" , process_chdir , sizeof ( process_chdir ) );
-    int i = n;
+    size_t n = 0;
+    int i = 0;
+#ifdef linux
+    n = readlink ( "/proc/self/exe" , process_chdir , sizeof ( process_chdir ) );
+#else
+    uint32_t new_argv0_s = sizeof ( process_chdir );
+
+    if ( _NSGetExecutablePath ( process_chdir, &new_argv0_s ) == 0 ) {
+        n = strlen ( process_chdir );
+    }
+
+#endif
+    i = n;
 
     while ( n > 1 ) if ( process_chdir[n--] == '/' ) {
             strncpy ( process_name, ( ( char * ) process_chdir ) + n + 2, i - n );
@@ -97,6 +112,7 @@ char *initProcTitle ( int argc, char **argv )
         }
 
     chdir ( process_chdir );
+
     n = 0;
 
     for ( i = 0; argv[i]; ++i ) {
@@ -120,7 +136,7 @@ char *initProcTitle ( int argc, char **argv )
     for ( i = 0; environ[i]; ++i ) {
         process_char_last += strlen ( environ[i] ) + 1;
     }
-    
+
     return process_chdir;
 }
 
@@ -200,7 +216,7 @@ int forkProcess ( void ( *func ) () )
 
     if ( ret == 0 ) {
         active_cpu ( _workerprocess_count );
-        func(_workerprocess_count);
+        func ( _workerprocess_count );
     }
 
     if ( ret > 0 ) {
@@ -222,7 +238,7 @@ void safeProcess()
 
             if ( ret == 0 ) {
                 active_cpu ( i );
-                _workerprocess_func[i](i);
+                _workerprocess_func[i] ( i );
             }
 
             _workerprocess[i] = ret;
@@ -318,6 +334,7 @@ int new_thread ( void *func )
     pthread_attr_setdetachstate ( &attr, PTHREAD_CREATE_DETACHED );
 
     int i = 0;
+
     if ( pthread_create ( &thread, &attr, func, &i ) ) {
         return 0;
     }

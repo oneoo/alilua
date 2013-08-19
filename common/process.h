@@ -34,10 +34,10 @@ void signal_handler ( int sig );
 void daemonize();
 void setProcessUser ( char *user, char *group );
 char *getarg ( char *key );
-int forkProcess ( void ( *func ) (int i) );
+int forkProcess ( void ( *func ) ( int i ) );
 void safeProcess();
 void waitForChildProcessExit();
-
+#ifdef linux
 #ifndef _SEMUN_H
 #define _SEMUN_H
 union semun {
@@ -46,6 +46,7 @@ union semun {
     unsigned short int *array;
     struct seminfo *__buf;
 };
+#endif /// linux
 # endif
 static int shm_ftok_id = 0;
 typedef struct _shm_t {

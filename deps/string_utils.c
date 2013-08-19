@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <iconv.h>
 #include <errno.h>
+#include <sys/types.h>
 
 #define MYNAME "string-utils"
 

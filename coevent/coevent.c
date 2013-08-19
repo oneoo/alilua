@@ -349,7 +349,7 @@ static int cosocket_be_write ( se_ptr_t *ptr )
 
     if ( !cok->ssl ) {
         while ( ( n = send ( cok->fd, cok->send_buf + cok->send_buf_ed,
-                             cok->send_buf_len - cok->send_buf_ed, MSG_DONTWAIT | MSG_NOSIGNAL ) ) > 0 ) {
+                             cok->send_buf_len - cok->send_buf_ed, MSG_DONTWAIT ) ) > 0 ) {
             cok->send_buf_ed += n;
         }
 
