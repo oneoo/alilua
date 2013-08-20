@@ -307,8 +307,8 @@ function initbox()
 		return r
 	end
 	
-	function loadstring(s)
-		local f,e = _loadstring(s)
+	function loadstring(s, c)
+		local f,e = _loadstring(s,c)
 		if f then
 			_setfenv(f, __box__)
 		end
@@ -320,15 +320,18 @@ function initbox()
 		local f1,e = CodeCache[f]
 		if not f1 then
 			f1,e = _readfile(f)
-			CodeCache[f] = f1
-		end
-		if f1 then
-			f1,e = loadstring(f1, f)
 			if f1 then
-				_setfenv(f1, __box__)
+				f1,e = loadstring('return function() ' .. f1 .. ' end', f)
+				CodeCache[f] = f1
 			end
 		end
-		return f1,e
+		
+		if f1 then
+			_setfenv(f1, __box__)
+			return f1()
+		end
+		
+		return nil, e
 	end
 	
 	function dofile(f)
@@ -438,5 +441,5 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 	end
 	f()
 	setfenv(process, box)
-	newthread(process, headers, _GET, _COOKIE, _POST)
+	process(headers, _GET, _COOKIE, _POST)
 end

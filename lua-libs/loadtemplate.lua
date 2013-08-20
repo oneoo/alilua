@@ -43,7 +43,7 @@ function loadtemplate(f, is_return, init)
 		_cache = template_cache[ceil((time()/CODE_CACHE_TTL))%2+1]
 	end
 	local _f = f..(is_return and '#' or '')
-	if _cache and _cache[_f] then return loadstring(_cache[_f]) end
+	if _cache and _cache[_f] then return _cache[_f]() end
 	
 	local fpath = '.'
 	local i = f:findlast('/', true)
@@ -144,11 +144,11 @@ function loadtemplate(f, is_return, init)
 	--print(concat(_codes))
 	_codes[_code_i] = ' return __HTMLS'
 	_codes = concat(_codes)
-	if _cache then _cache[_f] = _codes _cache['h'] = true end
-	local codes, err = loadstring(_codes, _f)
-	if not codes then codes = nil return nil, err, _codes end
+	local codes, err = loadstring('return function() '.._codes..' end', _f)
+	if _cache then _cache[_f] = codes _cache['h'] = true end
+	if not codes then codes = nil return nil, err end
 	
-	return codes
+	return codes()
 end
 
 _G.loadtemplate = loadtemplate
