@@ -479,6 +479,8 @@ int main ( int argc, char *argv[] )
                  "  --daemon             process mode\n"
                  "  --process=number     workers\n"
                  "  --log=file path      access log\n"
+                 "  --host-route         Special route file path\n"
+                 "  --code-cache-ttl     number of code cache time(sec)\n"
                  "  \n"
                  "\n",
                  version
@@ -542,6 +544,16 @@ int main ( int argc, char *argv[] )
         lua_gc ( _L, LUA_GCSTOP, 0 );
         luaL_openlibs ( _L ); /* Load Lua libraries */
         lua_gc ( _L, LUA_GCRESTART, 0 );
+
+        if ( getarg ( "code-cache-ttl" ) ) { /// default = 60s
+            lua_pushnumber ( _L, atoi ( getarg ( "code-cache-ttl" ) ) );
+            lua_setglobal ( _L, "CODE_CACHE_TTL" );
+        }
+
+        if ( getarg ( "host-route" ) ) {
+            lua_pushstring ( _L, getarg ( "host-route" ) );
+            lua_setglobal ( _L, "HOST_ROUTE" );
+        }
 
         lua_register ( _L, "echo", lua_echo );
         lua_register ( _L, "sendfile", lua_sendfile );

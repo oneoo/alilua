@@ -1,7 +1,14 @@
+SYS := $(shell gcc -dumpmachine)
 CC = gcc
 OPTIMIZATION = -O3
+
 CFLAGS = -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE)
+ifeq (, $(findstring linux, $(SYS)))
+CFLAGS = -liconv -lm -ldl -lpthread -lz -lssl -lcrypto $(HARDMODE)
+endif
+
 DEBUG = -g -ggdb
+
 ifeq ($(LUAJIT),)
 ifeq ($(LUA),)
 LIBLUA = -llua -L/usr/lib -L/usr/local/lib
@@ -11,11 +18,13 @@ endif
 else
 LIBLUA = -L$(LUAJIT) -lluajit-5.1
 endif
+
 ifndef $(PREFIX)
 PREFIX = /usr/local/alilua
 endif
+
 INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0
-#package.path = package.path .. ";../entity.lua"
+
 all: alilua
 
 alilua : main.o

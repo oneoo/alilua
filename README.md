@@ -1,6 +1,6 @@
-alilua
+aLiLua
 ======
-A epoll based web server, inculded lua/coevent support (Only support Linux platform)
+A epoll/kqueue based web server, inculded lua/coevent support (support Linux/MacOS/BSD platform)
 
 Install
 --------
@@ -51,6 +51,16 @@ Start
 ======
 
 $sudo alilua --daemon --bind=8080
+
+CommandLine Options
+======
+
+	--bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80
+	--daemon             process mode
+	--process=number     workers
+	--log=file path      access log
+	--host-route         Special route file path
+	--code-cache-ttl     number of code cache time(sec) default 60 sec
 
 Config
 ======

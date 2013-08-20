@@ -103,7 +103,10 @@ end
 
 function cacheTable(ttl)
 	if not ttl or type(ttl) ~= 'number' or ttl < 2 then
-		return nil
+		local t = {}
+		local mt = {__newindex = function (t1,k,v) return false end}
+		setmetatable(t, mt)
+		return t
 	end
 	ttl = ttl/2
 	local t = {{},{},{}}
@@ -124,8 +127,9 @@ function cacheTable(ttl)
 	setmetatable(proxy, mt)
 	return proxy
 end
-local CodeCache = cacheTable(60)
-local FileExistsCache = cacheTable(10)
+if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end
+local CodeCache = cacheTable(CODE_CACHE_TTL)
+local FileExistsCache = cacheTable(CODE_CACHE_TTL/2)
 
 host_route = {}
 setmetatable(host_route, {
@@ -219,7 +223,7 @@ local env = {null=null,error=error,io=io,_print=print, math=math, string=string,
 			trim=trim,strip=strip,explode=explode,implode=implode,escape=escape,escape_uri=escape_uri,unescape_uri=unescape_uri,
 			nl2br=_G['string-utils'].nl2br,
 			base64_encode=base64_encode,base64_decode=base64_decode,printf=printf,sprintf=sprintf,
-			hook=hook,get_hooks=get_hooks,host_route=host_route,_echo=echo,_die=die,_sendfile=sendfile,_header=header,_clear_header=clear_header,_loadfile=loadfile,_dofile=dofile,_loadtemplate=loadtemplate,_setfenv=setfenv,_setmetatable=setmetatable,_rawset=rawset,pcall=pcall,check_timeout=check_timeout,_setcookie=setcookie,_get_post_body=get_post_body,_dump=dump,print_error=print_error,CodeCache=CodeCache,_readfile=readfile,_loadstring=loadstring}
+			hook=hook,get_hooks=get_hooks,host_route=host_route,_echo=echo,_die=die,_sendfile=sendfile,_header=header,_clear_header=clear_header,_loadfile=loadfile,_dofile=dofile,_loadtemplate=loadtemplate,_setfenv=setfenv,_setmetatable=setmetatable,_rawset=rawset,pcall=pcall,check_timeout=check_timeout,_setcookie=setcookie,_get_post_body=get_post_body,_dump=dump,print_error=print_error,CodeCache=CodeCache,FileExistsCache=FileExistsCache,_readfile=readfile,_loadstring=loadstring}
 
 
 function initbox()
@@ -236,7 +240,12 @@ function initbox()
 	
 	function file_exists(f)
 		if not f:startsWith(__root) then f = __root .. f end
-		return _file_exists(f)
+		local exists = FileExistsCache[f]
+		if not exists then
+			exists = _file_exists(f)
+			FileExistsCache[f] = exists
+		end
+		return exists
 	end
 	
 	function sendfile(f)
@@ -372,6 +381,7 @@ function initbox()
 	end
 end
 
+if not HOST_ROUTE then HOST_ROUTE = 'host-route.lua' end
 function main(__epd, headers, _GET, _COOKIE, _POST)
 	local box = {}--get_env()
 	box.__epd__ = __epd
@@ -415,16 +425,18 @@ function main(__epd, headers, _GET, _COOKIE, _POST)
 		end
 	})
 	
-	if not CodeCache['host-route.lua'] then
-		CodeCache['host-route.lua'], e = loadfile('host-route.lua')
+	local f, e = CodeCache[HOST_ROUTE]
+	if not f then
+		f, e = loadfile(HOST_ROUTE)
+		CodeCache[HOST_ROUTE] = f
 		if e then
 			box.header('HTTP/1.1 503 Server Error')
-			box.echo(e)
+			box.echo('host route error!', e)
 			box.die()
 			return
 		end
 	end
-	CodeCache['host-route.lua']()
+	f()
 	setfenv(process, box)
 	newthread(process, headers, _GET, _COOKIE, _POST)
 end
