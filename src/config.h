@@ -21,11 +21,11 @@
 
 /// yac config
 #ifdef linux
-#define YAC_KEY_DATA_SIZE ( 1024 * 1024 * 4 )
-#define YAC_VALUE_DATA_SIZE ( 1024 * 1024 * 4 * 32 )
-#else /// for mac os
-#define YAC_KEY_DATA_SIZE ( 1024 * 1024 )
+#define YAC_KEY_DATA_SIZE ( 1024 * 1024 * 2 )
 #define YAC_VALUE_DATA_SIZE ( 1024 * 1024 * 32 )
+#else /// for mac os
+#define YAC_KEY_DATA_SIZE ( 1024 * 128 )
+#define YAC_VALUE_DATA_SIZE ( 1024 * 1024 * 2 )
 #endif
 /// others
 #define GZIP_LEVEL 2
