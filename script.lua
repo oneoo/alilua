@@ -20,6 +20,8 @@ local base64_encode = _G['string-utils'].base64_encode
 local base64_decode = _G['string-utils'].base64_decode
 local strip = _G['string-utils'].strip
 local iconv = _G['string-utils'].iconv
+local iconv_strlen = _G['string-utils'].iconv_strlen
+local iconv_substr = _G['string-utils'].iconv_substr
 local json_encode = cjson.encode
 local json_decode = cjson.decode
 function printf(s, ...) print(s:format(...)) end
@@ -219,7 +221,7 @@ local env = {null=null,error=error,io=io,_print=print, math=math, string=string,
 			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
 			cosocket=cosocket,allthreads=allthreads,newthread=newthread,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
-			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,_file_exists=file_exists,crypto=crypto,iconv=iconv,
+			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,_file_exists=file_exists,crypto=crypto,iconv=iconv,iconv_strlen=iconv_strlen,iconv_substr=iconv_substr,
 			trim=trim,strip=strip,explode=explode,implode=implode,escape=escape,escape_uri=escape_uri,unescape_uri=unescape_uri,
 			nl2br=_G['string-utils'].nl2br,
 			base64_encode=base64_encode,base64_decode=base64_decode,printf=printf,sprintf=sprintf,

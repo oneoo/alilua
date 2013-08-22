@@ -408,6 +408,7 @@ static void timeout_handle ( void *ptr )
     } else if ( epd->status == STEP_SEND ) {
         serv_status.sending_counts--;
     }
+    epd->status = STEP_WAIT;
 
     close_client ( epd );
 }

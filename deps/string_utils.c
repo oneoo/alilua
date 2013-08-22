@@ -832,17 +832,8 @@ static uint32_t fnv1a_64 ( const char *data, uint32_t len )
     return ( uint32_t ) rv;
 }
 
-static int lua_f_iconv ( lua_State *L )
+static iconv_t get_iconv ( const char *form, const char *to )
 {
-    if ( lua_gettop ( L ) != 3 || !lua_isstring ( L, 1 ) || !lua_isstring ( L, 2 )
-         || !lua_isstring ( L, 3 ) ) {
-        return luaL_error ( L, "expecting three string argument" );
-    }
-
-    size_t src_len = 0;
-    char *src = ( char * ) lua_tolstring ( L, 1, &src_len );
-    const char *form = lua_tostring ( L, 2 );
-    const char *to = lua_tostring ( L, 3 );
     int len = sprintf ( temp_buf, "%s%s", form, to );
     int key = fnv1a_64 ( temp_buf, len ) % 32;
     _iconv_t *n = _cds[key], *un = NULL;
@@ -870,6 +861,32 @@ static int lua_f_iconv ( lua_State *L )
         }
     }
 
+    return n->cd;
+}
+
+static int lua_f_iconv ( lua_State *L )
+{
+    if ( lua_gettop ( L ) < 2 || !lua_isstring ( L, 1 ) || !lua_isstring ( L, 2 ) ) {
+        return luaL_error ( L, "expecting arguments" );
+    }
+
+    size_t src_len = 0;
+    char *src = ( char * ) lua_tolstring ( L, 1, &src_len );
+    const char *form = lua_tostring ( L, 2 );
+    const char *to = "utf-8";
+
+    if ( lua_isstring ( L, 3 ) ) {
+        to = lua_tostring ( L, 3 );
+    }
+
+    iconv_t *cd = get_iconv ( form, to );
+
+    if ( !cd ) {
+        lua_pushnumber ( L, 0 );
+        lua_pushstring ( L, "cannot open iconv" );
+        return 2;
+    }
+
     size_t obsize = 4096;
     size_t obleft = obsize;
     size_t ret = -1;
@@ -878,7 +895,7 @@ static int lua_f_iconv ( lua_State *L )
     char *outbufs = outbuf;
 
     do {
-        ret = iconv ( n->cd, &src, &src_len, &outbuf, &obleft );
+        ret = iconv ( cd, &src, &src_len, &outbuf, &obleft );
 
         if ( ret == ( size_t ) ( -1 ) ) {
             lua_pushlstring ( L, outbufs, obsize - obleft );
@@ -916,6 +933,199 @@ static int lua_f_iconv ( lua_State *L )
 
     lua_pushnil ( L );
     return 2;
+}
+
+static int _php_iconv_strlen ( unsigned int *pretval, const char *str, size_t nbytes,
+                               const char *enc )
+{
+    char buf[4 * 2];
+    int err = 0;
+
+    const char *in_p;
+    size_t in_left;
+
+    char *out_p;
+    size_t out_left;
+
+    unsigned int cnt = 0;
+
+    *pretval = ( unsigned int ) - 1;
+
+    iconv_t *cd = get_iconv ( enc, "UCS-4" );
+
+    if ( cd == ( iconv_t ) ( -1 ) ) {
+        return -1;
+    }
+
+    errno = out_left = 0;
+
+    for ( in_p = str, in_left = nbytes, cnt = 0; in_left > 0; cnt += 2 ) {
+        size_t prev_in_left;
+        out_p = buf;
+        out_left = sizeof ( buf );
+
+        prev_in_left = in_left;
+
+        if ( iconv ( cd, ( char ** ) &in_p, &in_left, ( char ** ) &out_p,
+                     &out_left ) == ( size_t ) - 1 ) {
+            if ( prev_in_left == in_left ) {
+                break;
+            }
+        }
+    }
+
+    if ( out_left > 0 ) {
+        cnt -= out_left / 4;
+    }
+
+    *pretval = cnt;
+
+    return err;
+}
+
+static int lua_f_iconv_strlen ( lua_State *L )
+{
+    if ( !lua_isstring ( L, 1 ) ) {
+        return luaL_error ( L, "expecting string argument" );
+    }
+
+    size_t src_len = 0;
+    const char *src = lua_tolstring ( L, 1, &src_len );
+    const char *enc = "utf-8";
+
+    if ( lua_isstring ( L, 2 ) ) {
+        enc = lua_tostring ( L, 2 );
+    }
+
+    int _len = 0;
+
+    if ( _php_iconv_strlen ( &_len, src, src_len, enc ) == 0 ) {
+        lua_pushnumber ( L, _len );
+
+    } else {
+        lua_pushnumber ( L, 0 );
+    }
+
+    return 1;
+}
+
+static int lua_f_iconv_substr ( lua_State *L )
+{
+    if ( lua_gettop ( L ) < 2 || !lua_isstring ( L, 1 ) ) {
+        return luaL_error ( L, "expecting arguments" );
+    }
+
+    size_t src_len = 0;
+    const char *src = lua_tolstring ( L, 1, &src_len );
+    const char *enc = "utf-8";
+
+    int sub_start = 0;
+    int sub_end = src_len;
+    int ps = 2;
+
+    if ( lua_isnumber ( L, ps ) ) {
+        sub_start = lua_tonumber ( L, ps );
+
+        if ( sub_start < 0 ) {
+            sub_start = 0;
+        }
+
+        ps ++;
+    }
+
+    if ( lua_isnumber ( L, ps ) ) {
+        sub_end = lua_tonumber ( L, ps );
+
+        if ( sub_end >= 0 ) {
+            sub_end += sub_start;
+        }
+
+        ps ++;
+    }
+
+    if ( lua_isstring ( L, ps ) ) {
+        enc = lua_tostring ( L, ps );
+    }
+
+    if ( sub_end < 0 ) {
+        int _len = 0;
+
+        if ( _php_iconv_strlen ( &_len, src, src_len, enc ) == 0 ) {
+            sub_end += _len - 1;
+
+        } else {
+            lua_pushnumber ( L, 0 );
+            lua_pushstring ( L, "cannot convert string" );
+            return 2;
+        }
+    }
+
+    char *obuf = temp_buf;
+    int olen = 0;
+    int pushed = 0;
+
+    char buf[4];
+    const char *in_p;
+    size_t in_left;
+
+    char *out_p;
+    size_t out_left;
+
+    unsigned int cnt = 0;
+
+
+    iconv_t *cd = get_iconv ( enc, "UCS-4" );
+
+    if ( cd == ( iconv_t ) ( -1 ) ) {
+        lua_pushnumber ( L, 0 );
+        lua_pushstring ( L, "cannot open iconv" );
+        return 2;
+    }
+
+    errno = out_left = 0;
+
+    for ( in_p = src, in_left = src_len, cnt = 0; in_left > 0; cnt ++ ) {
+        size_t prev_in_left;
+        out_p = buf;
+        out_left = sizeof ( buf );
+
+        prev_in_left = in_left;
+
+        if ( iconv ( cd, ( char ** ) &in_p, &in_left, ( char ** ) &out_p,
+                     &out_left ) == ( size_t ) - 1 ) {
+            if ( prev_in_left == in_left ) {
+                break;
+            }
+        }
+
+        if ( cnt - out_left / 4 >= sub_start ) {
+            if ( olen >= sizeof ( temp_buf ) * 0.6 ) {
+                lua_pushlstring ( L, obuf, olen );
+                olen = 0;
+
+                if ( pushed == 1 ) {
+                    lua_concat ( L, 2 );
+                }
+
+                pushed = 1;
+            }
+
+            memcpy ( obuf + olen, src + ( src_len - prev_in_left ), prev_in_left - in_left );
+            olen += prev_in_left - in_left;
+        }
+
+        if ( cnt - out_left / 4 >= sub_end ) {
+            break;
+        }
+    }
+
+    lua_pushlstring ( L, obuf, olen );
+
+    if ( pushed == 1 ) {
+        lua_concat ( L, 2 );
+    }
+
+    return 1;
 }
 
 static int lua_f_nl2br ( lua_State *L )
@@ -983,6 +1193,8 @@ static const luaL_reg F[] = {
     {"nl2br",               lua_f_nl2br},
 
     {"iconv",               lua_f_iconv},
+    {"iconv_strlen",        lua_f_iconv_strlen},
+    {"iconv_substr",        lua_f_iconv_substr},
 
     {NULL,                  NULL}
 };

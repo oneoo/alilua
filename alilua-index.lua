@@ -1,1 +1,6 @@
+print(iconv_strlen('中文呢？aaa', 'gb2312'))
+print(iconv_strlen('涓枃鍛紵aaa', 'utf-8'))
+print(iconv(iconv_substr('中文呢？aaa', 3, -1, 'gb2312'), 'gb2312'))
+print(iconv_substr('涓枃鍛紵aaa', 3,-1, 'utf-8'))
+print(iconv('中文呢？aaa', 'gb2312', 'utf-8'))
 die('Hello, Lua!')
