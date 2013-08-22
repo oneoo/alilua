@@ -19,6 +19,10 @@ WARN= -g -Werror -Wall -pedantic #-ansi
 INCS= -I$(LUAINC) -I/usr/local/include -I/usr/local/include/luajit-2.0 -I$(ZLIB)
 LIBS= -L$(ZLIB) -lz -L$(LUALIB) -L$(LUABIN) -llua
 
+ifneq (,$(findstring luajit,$(LIBLUA)))
+LIBS= -L$(ZLIB) -lz -L$(LUALIB) -L$(LUABIN) -lluajit-5.1
+endif
+
 MYLIB=lzlib
 
 ZLIB_NAME = zlib

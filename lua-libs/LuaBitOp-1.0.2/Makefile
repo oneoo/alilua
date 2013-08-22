@@ -19,6 +19,9 @@ CCWARN= -Wall
 SOCC= $(CC) -shared
 SOCFLAGS= -fPIC $(CCOPT) $(CCWARN) $(DEFINES) $(INCLUDES) $(CFLAGS)
 SOLDFLAGS= -fPIC $(LDFLAGS) -llua
+ifneq (,$(findstring luajit,$(LIBLUA)))
+SOLDFLAGS = -fPIC $(LDFLAGS) -lluajit-5.1
+endif
 RM= rm -f
 INSTALL= install -p
 INSTALLPATH= $(LUA) installpath.lua

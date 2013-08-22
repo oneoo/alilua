@@ -40,9 +40,9 @@ main.o:
 	cd objs && $(CC) -c ../deps/fastlz/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
 	cd objs && $(CC) -c ../coevent/*.c $(CFLAGS) $(DEBUG) $(LIBLUA) $(INCLUDES);
 
-	cd lua-libs/LuaBitOp-1.0.2 && make && cp bit.so ../ && make clean;
-	cd lua-libs/lua-cjson-2.1.0 && make && cp cjson.so ../ && make clean;
-	cd lua-libs/lzlib && make && cp zlib.so ../ && make clean;
+	cd lua-libs/LuaBitOp-1.0.2 && make LIBLUA="$(LIBLUA)" && cp bit.so ../ && make clean;
+	cd lua-libs/lua-cjson-2.1.0 && make LIBLUA="$(LIBLUA)" && cp cjson.so ../ && make clean;
+	cd lua-libs/lzlib && make LIBLUA="$(LIBLUA)" && cp zlib.so ../ && make clean && rm -rf *.o;
 
 
 .PHONY : clean zip install noopt hardmode
