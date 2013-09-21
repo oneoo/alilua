@@ -43,6 +43,7 @@
 
 char hostname[1024];
 
+int lua_errorlog ( lua_State *L );
 int lua_check_timeout ( lua_State *L );
 int lua_header ( lua_State *L );
 int lua_echo ( lua_State *L );

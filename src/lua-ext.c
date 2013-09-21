@@ -2,6 +2,59 @@
 
 static char tbuf_4096[4096];
 
+extern FILE *ERR_FD;
+int lua_errorlog ( lua_State *L )
+{
+    if ( !ERR_FD ) {
+        return 0;
+    }
+
+    char now_date2[100];
+    time_t now2;
+    time ( &now2 );
+    static struct tm now_tm2;
+    gmtime_r ( &now2, &now_tm2 );
+    sprintf ( now_date2, "%s, %02d %s %04d %02d:%02d:%02d GMT",
+              DAYS_OF_WEEK[now_tm2.tm_wday],
+              now_tm2.tm_mday,
+              MONTHS_OF_YEAR[now_tm2.tm_mon],
+              now_tm2.tm_year + 1900,
+              now_tm2.tm_hour,
+              now_tm2.tm_min,
+              now_tm2.tm_sec );
+
+    if ( lua_isuserdata ( L, 1 ) ) {
+        epdata_t *epd = lua_touserdata ( L, 1 );
+        fprintf ( ERR_FD,
+                  "[%s] %s %s \"%s %s%s%s %s\" \"%s\" \"%s\" {%s}\n",
+                  now_date2,
+                  inet_ntoa ( epd->client_addr ),
+                  epd->host ? epd->host : "-",
+                  epd->method ? epd->method : "-",
+                  epd->uri ? epd->uri : "/",
+                  epd->query ? "?" : "",
+                  epd->query ? epd->query : "",
+                  epd->http_ver ? epd->http_ver : "-",
+                  epd->referer ? epd->referer : "-",
+                  epd->user_agent ? epd->user_agent : "-",
+                  lua_tostring ( L, 2 ) );
+
+    } else if ( lua_isstring ( L, 1 ) ) {
+        fprintf ( ERR_FD,
+                  "[%s] miss connection infos {%s}\n",
+                  now_date2,
+                  lua_tostring ( L, 1 ) );
+
+    } else if ( lua_isstring ( L, 2 ) ) {
+        fprintf ( ERR_FD,
+                  "[%s] miss connection infos {%s}\n",
+                  now_date2,
+                  lua_tostring ( L, 2 ) );
+    }
+
+    return 0;
+}
+
 int lua_check_timeout ( lua_State *L )
 {
     if ( !lua_isuserdata ( L, 1 ) ) {

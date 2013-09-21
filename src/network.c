@@ -408,6 +408,7 @@ static void timeout_handle ( void *ptr )
     } else if ( epd->status == STEP_SEND ) {
         serv_status.sending_counts--;
     }
+
     epd->status = STEP_WAIT;
 
     close_client ( epd );
@@ -778,9 +779,10 @@ static int network_be_accept ( se_ptr_t *ptr )
     epdata_t *epd = NULL;
     int acc_trys = 0, client_fd = -1;
     struct sockaddr_in remote_addr;
-    int addr_len = 0;
+    int addr_len = sizeof ( struct sockaddr_in );
 
     while ( acc_trys++ < 3 ) {
+        //addr_len = sizeof( struct sockaddr_in );
         client_fd = accept ( server_fd, ( struct sockaddr * ) &remote_addr, &addr_len );
 
         if ( client_fd < 0 && errno != EAGAIN && errno != EWOULDBLOCK ) {

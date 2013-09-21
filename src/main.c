@@ -3,6 +3,8 @@
 int server_fd = 0;
 FILE *LOG_FD = NULL;
 static char LOG_BUF[40960];
+FILE *ERR_FD = NULL;
+static char ERR_BUF[4096];
 
 static lua_State *_L;
 static int process_count = 2;
@@ -53,6 +55,11 @@ static void on_master_exit_handler ( int sig, siginfo_t *info, void *secret )
         fflush ( LOG_FD );
         fclose ( LOG_FD );
     }
+
+    if ( ERR_FD ) {
+        fflush ( ERR_FD );
+        fclose ( ERR_FD );
+    }
 }
 
 static void master_main()
@@ -102,9 +109,7 @@ int worker_process ( epdata_t *epd, int thread_at )
         lua_pop(L,1);
         printf("no function\n");
     }else*/{
-        lua_pushlightuserdata ( L, epd );
-        //lua_pushstring(L, epd->headers);
-        lua_newtable ( L );
+        int init_tables = 0;
         char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL, *query = NULL;
 
         int is_form_post = 0;
@@ -118,6 +123,18 @@ int worker_process ( epdata_t *epd, int thread_at )
                 t2 = strtok_r ( t1, " ", &t1 );
                 t3 = strtok_r ( t1, " ", &t1 );
                 epd->http_ver = strtok_r ( t1, " ", &t1 );
+
+                if ( !epd->http_ver ) {
+                    return 1;
+
+                } else {
+                    if ( init_tables == 0 ) {
+                        lua_pushlightuserdata ( L, epd );
+                        //lua_pushstring(L, epd->headers);
+                        lua_newtable ( L );
+                    }
+                }
+
                 int len = strlen ( epd->http_ver );
 
                 if ( epd->http_ver[len - 1] == 13 ) { // CR == 13
@@ -426,7 +443,10 @@ int main ( int argc, char *argv[] )
 {
     attach_on_exit ( on_master_exit_handler );
 
-    char *msg;
+    /// 初始化进程命令行信息
+    char *cwd = initProcTitle ( argc, argv );
+
+    char *msg = NULL;
 
     if ( !yac_storage_startup ( YAC_KEY_DATA_SIZE, YAC_VALUE_DATA_SIZE, &msg ) ) {
         printf ( "Shared memory allocator startup failed at '%s': %s", msg,
@@ -443,6 +463,17 @@ int main ( int argc, char *argv[] )
         }
 
         setvbuf ( LOG_FD , LOG_BUF, _IOFBF , 40960 );
+    }
+
+    if ( getarg ( "errorlog" ) && strlen ( getarg ( "errorlog" ) ) > 0 ) {
+        ERR_FD = fopen ( getarg ( "errorlog" ), "a+" );
+
+        if ( !ERR_FD ) {
+            printf ( "fopen %s error\n" , getarg ( "errorlog" ) );
+            return -1;
+        }
+
+        setvbuf ( ERR_FD , ERR_BUF, _IOFBF , 4096 );
     }
 
     hostname[1023] = '\0';
@@ -465,9 +496,6 @@ int main ( int argc, char *argv[] )
     sprintf ( hostname, "%s/%s", hostname, lua_ver );
     lua_close ( L );
 
-    /// 初始化进程命令行信息
-    char *cwd = initProcTitle ( argc, argv );
-
     if ( getarg ( "help" ) ) {
         printf ( "This is the aLiLua/%s Web Server.  Usage:\n"
                  "\n"
@@ -478,7 +506,8 @@ int main ( int argc, char *argv[] )
                  "  --bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80\n"
                  "  --daemon             process mode\n"
                  "  --process=number     workers\n"
-                 "  --log=file path      access log\n"
+                 "  --log=file-path      access log\n"
+                 "  --errorlog=file-path error log\n"
                  "  --host-route         Special route file path\n"
                  "  --code-cache-ttl     number of code cache time(sec)\n"
                  "  \n"
@@ -555,6 +584,7 @@ int main ( int argc, char *argv[] )
             lua_setglobal ( _L, "HOST_ROUTE" );
         }
 
+        lua_register ( _L, "errorlog", lua_errorlog );
         lua_register ( _L, "echo", lua_echo );
         lua_register ( _L, "sendfile", lua_sendfile );
         lua_register ( _L, "header", lua_header );
