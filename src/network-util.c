@@ -37,7 +37,7 @@ int network_bind ( char *addr, int port )
     struct sockaddr_in sin;
 
     if ( ( fd = socket ( AF_INET, SOCK_STREAM, 0 ) ) <= 0 ) {
-        perror ( "socket failed\n" );
+        perror ( "Socket failed" );
         signal ( SIGHUP, SIG_IGN );
         exit ( 1 );
     }

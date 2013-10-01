@@ -308,7 +308,7 @@ char *getarg ( char *key )
     int i = 0;
     int addp;
 
-    while ( i < sizeof ( environ ) ) {
+    while ( i < sizeof ( environ ) && environ[i] != NULL) {
         addp = environ[i][0] == '-'
                && environ[i][1] == '-' ? 2 : ( environ[i][0] == '-' ? 1 : 0 );
 
