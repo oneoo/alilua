@@ -2,6 +2,8 @@ aLiLua
 ======
 A epoll/kqueue based web server, inculded lua/coevent support (support Linux/MacOS/BSD platform)
 
+*WebSocket supported
+
 Install
 --------
 
@@ -73,6 +75,11 @@ Limits
 Response header length < 3KB
 
 Response body length < 900KB
+
+Documents
+======
+
+[http://alilua.com/docs.html](http://alilua.com/docs.html)
 
 Maillist
 ======
