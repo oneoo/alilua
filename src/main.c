@@ -592,6 +592,10 @@ int main ( int argc, char *argv[] )
         lua_register ( _L, "die", lua_die );
         lua_register ( _L, "get_post_body", lua_get_post_body );
         lua_register ( _L, "check_timeout", lua_check_timeout );
+        lua_register ( _L, "is_websocket", lua_f_is_websocket );
+        lua_register ( _L, "upgrade_to_websocket", lua_f_upgrade_to_websocket );
+        lua_register ( _L, "websocket_send", lua_f_websocket_send );
+        lua_register ( _L, "sleep", lua_f_sleep );
 
         lua_register ( _L, "random_string", lua_f_random_string );
         lua_register ( _L, "file_exists", lua_f_file_exists );

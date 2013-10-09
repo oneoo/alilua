@@ -56,6 +56,11 @@ int lua_f_cache_get ( lua_State *L );
 int lua_f_cache_del ( lua_State *L );
 int lua_f_random_string ( lua_State *L );
 int lua_f_file_exists ( lua_State *L );
+int lua_f_is_websocket ( lua_State *L );
+int lua_f_upgrade_to_websocket ( lua_State *L );
+int lua_f_websocket_send ( lua_State *L );
+int check_lua_sleep_timeouts();
+int lua_f_sleep ( lua_State *L );
 
 char *_process_chdir;
 

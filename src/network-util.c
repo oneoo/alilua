@@ -114,7 +114,7 @@ int network_raw_send ( int client_fd, const char *contents, int length )
         len += n;
     }
 
-    return 1;
+    return len;
 }
 
 char *network_raw_read ( int cfd, int *datas_len )

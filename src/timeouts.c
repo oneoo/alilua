@@ -7,7 +7,7 @@ static time_t now = 0;
 static timeout_t *timeout_links[64] = {NULL8 NULL8 NULL8 NULL8 NULL8 NULL8 NULL8 NULL8};
 static timeout_t *timeout_link_ends[64] = {NULL8 NULL8 NULL8 NULL8 NULL8 NULL8 NULL8 NULL8};
 #define F1_8 -1,-1,-1,-1,-1,-1,-1,-1,
-static int timeouts[64] = {F1_8 F1_8 F1_8 F1_8 F1_8 F1_8 F1_8 F1_8};
+//static int timeouts[64] = {F1_8 F1_8 F1_8 F1_8 F1_8 F1_8 F1_8 F1_8};
 
 timeout_t *add_timeout ( void *ptr, int timeout, timeout_handle_t *handle )
 {
@@ -17,7 +17,7 @@ timeout_t *add_timeout ( void *ptr, int timeout, timeout_handle_t *handle )
         return NULL;
     }
 
-    timeouts[timeout % 64] = 1;
+    //timeouts[timeout % 64] = 1;
 
     timeout_t *n = malloc ( sizeof ( timeout_t ) );
 

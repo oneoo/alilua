@@ -3,12 +3,45 @@
 #include "timeouts.h"
 
 extern FILE *LOG_FD;
+extern FILE *ERR_FD;
 extern int server_fd;
 
 static char temp_buf[8192];
 
 static struct iovec send_iov[_MAX_IOV_COUNT];
 static int send_iov_count = 0;
+
+void errorlog ( epdata_t *epd, const char *msg )
+{
+    char now_date2[100];
+    time_t now2;
+    time ( &now2 );
+    static struct tm now_tm2;
+    gmtime_r ( &now2, &now_tm2 );
+    sprintf ( now_date2, "%s, %02d %s %04d %02d:%02d:%02d GMT",
+              DAYS_OF_WEEK[now_tm2.tm_wday],
+              now_tm2.tm_mday,
+              MONTHS_OF_YEAR[now_tm2.tm_mon],
+              now_tm2.tm_year + 1900,
+              now_tm2.tm_hour,
+              now_tm2.tm_min,
+              now_tm2.tm_sec );
+
+    fprintf ( ERR_FD,
+              "[%s] %s %s \"%s %s%s%s %s\" \"%s\" \"%s\" {%s}\n",
+              now_date2,
+              inet_ntoa ( epd->client_addr ),
+              epd->host ? epd->host : "-",
+              epd->websocket ? "WebSocket" : ( epd->method ? epd->method : "-" ),
+              epd->uri ? epd->uri : "/",
+              epd->query ? "?" : "",
+              epd->query ? epd->query : "",
+              epd->http_ver ? epd->http_ver : "-",
+              epd->referer ? epd->referer : "-",
+              epd->user_agent ? epd->user_agent : "-",
+              msg );
+
+}
 
 int network_send_header ( epdata_t *epd, const char *header )
 {
@@ -168,7 +201,12 @@ void free_epd_request ( epdata_t *epd )  /// for keepalive
     epd->process_timeout = 0;
     epd->iov_buf_count = 0;
 
-    se_be_read ( epd->se_ptr, network_be_read );
+    if ( !epd->websocket ) {
+        se_be_read ( epd->se_ptr, network_be_read );
+
+    } else {
+        se_be_read ( epd->se_ptr, websocket_be_read );
+    }
 }
 
 void close_client ( epdata_t *epd )
@@ -192,6 +230,17 @@ void close_client ( epdata_t *epd )
         serv_status.active_counts--;
         close ( epd->fd );
         epd->fd = -1;
+    }
+
+    if ( epd->websocket ) {
+        if ( epd->websocket->websocket_handles > 0 ) {
+            luaL_unref ( epd->websocket->ML, LUA_REGISTRYINDEX,
+                         epd->websocket->websocket_handles );
+        }
+
+        lua_resume ( epd->websocket->ML, 0 );
+        free ( epd->websocket );
+        epd->websocket = NULL;
     }
 
     free_epd ( epd );
@@ -455,14 +504,15 @@ static int network_be_read ( se_ptr_t *ptr )
         epd->buf_size += 4096;
     }
 
-    while ( ( n = recv ( epd->fd, epd->headers + epd->data_len, 4096, 0 ) ) >= 0 ) {
+    while ( ( n = recv ( epd->fd, epd->headers + epd->data_len,
+                         epd->buf_size - epd->data_len, 0 ) ) >= 0 ) {
         if ( n == 0 ) {
             close_client ( epd );
             epd = NULL;
             break;
         }
 
-        if ( epd->data_len + n + 4096 > epd->buf_size ) {
+        if ( epd->data_len + n >= epd->buf_size ) {
             char *_t = ( char * ) realloc ( epd->headers, epd->buf_size + 4096 );
 
             if ( _t != NULL ) {
@@ -500,7 +550,7 @@ static int network_be_read ( se_ptr_t *ptr )
 
             } else {
                 _get_content_length = 1;
-                char *fp2 = stristr ( epd->headers, "\r\n\r\n", epd->data_len );
+                unsigned char *fp2 = stristr ( epd->headers, "\r\n\r\n", epd->data_len );
 
                 if ( fp2 ) {
                     epd->_header_length = ( fp2 - epd->headers ) + 4;
@@ -522,7 +572,7 @@ static int network_be_read ( se_ptr_t *ptr )
                 } else {
                     int flag = 0;
 
-                    char *fp = stristr ( epd->headers, "\ncontent-length:", epd->data_len );
+                    unsigned char *fp = stristr ( epd->headers, "\ncontent-length:", epd->data_len );
 
                     if ( fp ) {
                         int fp_at = fp - epd->headers + 16;
@@ -819,6 +869,7 @@ static int network_be_accept ( se_ptr_t *ptr )
         epd->keepalive = -1;
         epd->process_timeout = 0;
         epd->iov_buf_count = 0;
+        epd->websocket = NULL;
 
         epd->se_ptr = se_add ( loop_fd, client_fd, epd );
         epd->timeout_ptr = add_timeout ( epd, STEP_WAIT_TIMEOUT, timeout_handle );
@@ -834,6 +885,7 @@ static int network_be_accept ( se_ptr_t *ptr )
 
 static int without_jobs()
 {
+    check_lua_sleep_timeouts();
     check_timeouts();
 
     if ( checkProcessForExit() || has_error_for_exit ) {
@@ -848,6 +900,10 @@ static int without_jobs()
 
 void network_worker ( void *_process_func, int process_count, int process_at )
 {
+    if ( sizeof ( epdata_t ) != 4096 ) {
+        printf ( "warning sizof(epdata_t) = %ld\n", sizeof ( epdata_t ) );    // must be 4096
+    }
+
     signal ( SIGPIPE, SIG_IGN );
 
     _shm_serv_status = shm_malloc ( sizeof ( serv_status_t ) );

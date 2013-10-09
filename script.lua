@@ -220,7 +220,8 @@ function readfile(f)
 	return r,e
 end
 
-local env = {null=null,errorlog=errorlog,error=error,io=io,_print=print, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
+
+local env = {null=null,errorlog=errorlog,error=error,io=io,_print=print, sha1bin=sha1bin,is_websocket=is_websocket,upgrade_to_websocket=upgrade_to_websocket,_websocket_send=websocket_send, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
 			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
 			cosocket=cosocket,allthreads=allthreads,newthread=newthread,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
@@ -386,6 +387,35 @@ function initbox()
 	end
 	function get_hooks(f)
 		return __fun_hooks[__hooked[f]]
+	end
+	
+	
+	function websocket_accept(loop)
+		if is_websocket(__epd__) then return end
+		if not headers['sec-websocket-key'] then
+			_header(__epd__, "HTTP/1.1 400 Bad Request")
+			_die(__epd__)
+		else
+			_header(__epd__, {"HTTP/1.1 101 Switching Protocols",
+					"Upgrade: websocket",
+					"Connection: Upgrade",
+					"Sec-WebSocket-Accept: "..base64_encode(sha1bin(headers['sec-websocket-key']..'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'))
+					})
+			upgrade_to_websocket(__epd__, __box__)
+			if loop then
+				loop = newthread(loop)
+			end
+			sleep(1000000) -- for ever
+			wait(loop)
+		end
+	end
+	
+	function websocket_send(data)
+		if #data > 200 then
+		newthread(function() _websocket_send(__epd__, data) end)
+		else
+		_websocket_send(__epd__, data)
+		end
 	end
 end
 

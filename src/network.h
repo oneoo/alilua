@@ -38,15 +38,28 @@
 
 shm_t *_shm_serv_status;
 
+typedef struct {
+    uint8_t masking_key_offset;
+    uint8_t frame_mask;
+    unsigned char frame_masking_key[4];
+    int websocket_handles;
+    void *ML;
+    void *L;
+    void *data;
+    uint32_t data_len;
+    uint32_t sended;
+} websocket_pt;
+
 typedef struct _epdata_t {
     void *se_ptr;
     void *timeout_ptr;
     uint8_t status;
+    websocket_pt *websocket;
 
     int fd;
-    char *headers;
+    unsigned char *headers;
     int header_len;
-    char *contents;
+    unsigned char *contents;
     int content_length;
 
     char *method;
@@ -69,7 +82,7 @@ typedef struct _epdata_t {
 
     int response_sendfile_fd;
 
-#define _MAX_IOV_COUNT 243
+#define _MAX_IOV_COUNT 242
     struct iovec iov[_MAX_IOV_COUNT];
     int response_header_length;
     int iov_buf_count;
@@ -83,6 +96,26 @@ typedef struct _epdata_t {
     char z[4]; /// align size to 4096
 } epdata_t;
 
+#define WS_FRAME_FIN_AND_RSV        0x80
+
+#define WS_FRAME_OPCODE_CONTINUATION    0
+#define WS_FRAME_OPCODE_TEXT        1
+#define WS_FRAME_OPCODE_BINARY      2
+#define WS_FRAME_OPCODE_CLOSE       8
+#define WS_FRAME_OPCODE_PING        9
+#define WS_FRAME_OPCODE_PONG        10
+
+#define WS_FRAME_MASK           0
+#define WS_OPCODE_CONTINUE   0x00
+#define WS_OPCODE_TEXT       0x01
+#define WS_OPCODE_BINARY     0x02
+
+/* opcode: control frames */
+#define WS_OPCODE_CLOSE      0x08
+#define WS_OPCODE_PING       0x09
+#define WS_OPCODE_PONG       0x0a
+
+void errorlog ( epdata_t *epd, const char *msg );
 char *url_encode ( char const *s, int raw, size_t len, size_t *new_length );
 char *url_decode ( char *str, int raw, size_t *new_length );
 char *stristr ( const char *str, const char *pat, int length );
@@ -99,6 +132,17 @@ void sync_serv_status();
 
 static int network_be_read ( se_ptr_t *ptr );
 static int network_be_write ( se_ptr_t *ptr );
+
+int ws_send_data ( epdata_t *epd,
+                   unsigned int fin,
+                   unsigned int rsv1,
+                   unsigned int rsv2,
+                   unsigned int rsv3,
+                   unsigned int opcode,
+                   uint64_t payload_len,
+                   const char *payload_data );
+int websocket_be_read ( se_ptr_t *ptr );
+int websocket_be_write ( se_ptr_t *ptr );
 
 int network_send_header ( epdata_t *epd, const char *header );
 int network_send ( epdata_t *epd, const char *data, int _len );
