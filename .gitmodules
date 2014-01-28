@@ -1,0 +1,3 @@
+[submodule "coevent"]
+	path = coevent
+	url = https://github.com/oneoo/alilua-coevent-module
