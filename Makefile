@@ -9,6 +9,10 @@ endif
 
 DEBUG = -g -ggdb
 
+ifneq ($(SMPDEBUG),)
+DEBUG = -g -ggdb -D SMPDEBUG
+endif
+
 ifeq ($(LUAJIT),)
 ifeq ($(LUA),)
 LIBLUA = -llua -L/usr/lib

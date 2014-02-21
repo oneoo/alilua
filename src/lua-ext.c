@@ -195,7 +195,7 @@ int lua_echo(lua_State *L)
         char *buf = temp_buf;
 
         if(len > 4096) {
-            buf = large_malloc(len);
+            buf = malloc(len);
 
             if(!buf) {
                 return 0;

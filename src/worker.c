@@ -16,10 +16,16 @@ static void on_exit_handler()
     LOGF(ALERT, "worker %d exited", worker_n);
 }
 
+static int dump_smp_link_time = 0;
 static int other_simple_jobs()
 {
     check_lua_sleep_timeouts();
     sync_serv_status();
+
+    if(now - dump_smp_link_time > 60){
+        dump_smp_link_time = now;
+        dump_smp_link();
+    }
 
     return 1; // return 0 will be exit the worker
 }
@@ -225,7 +231,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 u_char *p;
                 u_char *src, *dst;
                 len = strlen(t3);
-                p = large_malloc(len);
+                p = malloc(len);
                 p[0] = '\0';
                 dst = p;
                 urldecode(&dst, &t3, len, 0);
@@ -235,7 +241,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
                 if(len > 4096) {
                     free(p);
-                    p = large_malloc(len);
+                    p = malloc(len);
                 }
 
                 p[0] = '\0';
@@ -261,7 +267,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 u_char *p;
                 u_char *src, *dst;
                 len = strlen(t3);
-                p = large_malloc(len);
+                p = malloc(len);
                 p[0] = '\0';
                 dst = p;
                 urldecode(&dst, &t3, len, 0);
@@ -271,7 +277,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
                 if(len > 4096) {
                     free(p);
-                    p = large_malloc(len);
+                    p = malloc(len);
                 }
 
                 p[0] = '\0';
@@ -300,7 +306,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 u_char *p;
                 u_char *src, *dst;
                 len = strlen(t3);
-                p = large_malloc(len);
+                p = malloc(len);
                 p[0] = '\0';
                 dst = p;
                 urldecode(&dst, &t3, len, 0);
