@@ -31,7 +31,7 @@ ifndef $(PREFIX)
 PREFIX = /usr/local/alilua
 endif
 
-INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0
+INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0 -I/usr/local/include/luajit-2.1
 
 all: alilua
 
