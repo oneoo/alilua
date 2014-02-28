@@ -5,6 +5,7 @@ local redis = require('redis')
 local date = require('date')
 local loadtemplate = require('loadtemplate')
 local httpclient = require('httpclient')
+local llmdb = require "llmdb"
 
 local md5 = function(s) return crypto.evp.digest('md5', s) end
 function string:trim() return self:gsub('^%s*(.-)%s*$', '%1') end
@@ -221,7 +222,7 @@ function readfile(f)
 end
 
 local env = {null=null,LOG=LOG,DEBUG=1,INFO=2,NOTICE=3,WARN=4,ALERT=5,ERR=6,error=error,io=io,_print=print, sha1bin=sha1bin,is_websocket=is_websocket,upgrade_to_websocket=upgrade_to_websocket,_websocket_send=websocket_send, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
-			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,
+			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,llmdb=llmdb,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
 			cosocket=cosocket,allthreads=allthreads,newthread=newthread,wait=wait,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,cjson=cjson,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
 			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,_file_exists=file_exists,crypto=crypto,iconv=iconv,iconv_strlen=iconv_strlen,iconv_substr=iconv_substr,
