@@ -27,6 +27,10 @@ LIBLUA = -L$(LUAJIT) -lluajit-5.1
 endif
 endif
 
+ifneq (, $(findstring i686-apple-darwin, $(SYS)))
+MACGCC =  -pagezero_size 10000 -image_base 100000000
+endif
+
 ifndef $(PREFIX)
 PREFIX = /usr/local/alilua
 endif
@@ -36,7 +40,7 @@ INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0 -I/usr/local/inclu
 all: alilua
 
 alilua : main.o
-	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -o $@ $(CFLAGS) $(DEBUG) $(LIBLUA) -pagezero_size 10000 -image_base 100000000
+	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -o $@ $(CFLAGS) $(DEBUG) $(LIBLUA) $(MACGCC)
 
 main.o:
 	[ -f coevent/src/coevent.h ] || (git submodule init && git submodule update)
