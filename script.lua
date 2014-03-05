@@ -5,7 +5,7 @@ local redis = require('redis')
 local date = require('date')
 local loadtemplate = require('loadtemplate')
 local httpclient = require('httpclient')
-local llmdb = require "llmdb"
+local llmdb = require('llmdb-client')
 
 local md5 = function(s) return crypto.evp.digest('md5', s) end
 function string:trim() return self:gsub('^%s*(.-)%s*$', '%1') end
@@ -25,6 +25,43 @@ local iconv_strlen = _G['string-utils'].iconv_strlen
 local iconv_substr = _G['string-utils'].iconv_substr
 local json_encode = cjson.encode
 local json_decode = cjson.decode
+local htmlspecialchars = function(value)
+	if not value then
+		return ''
+	end
+	if type(value) == "number" then
+		return value
+	end
+	value = tostring(value)
+	local subst =
+	{
+	["&"] = "&amp;";
+	['"'] = "&quot;";
+	["'"] = "&apos;";
+	["<"] = "&lt;";
+	[">"] = "&gt;";
+	}
+	return (value:gsub("[&\"'<>]", subst))
+end
+local htmlspecialchars_decode = function(value)
+	if not value then
+		return ''
+	end
+	if type(value) == "number" then
+		return value
+	end
+	value = tostring(value)
+	local subst =
+	{
+	["&amp;"] = "&";
+	['&quot;'] = '"';
+	["&apos;"] = "'";
+	["&lt;"] = "<";
+	["&gt;"] = ">";
+	}
+	return (value:gsub("[&\"'<>]", subst))
+end
+
 function printf(s, ...) print(s:format(...)) end
 function sprintf(s, ...) return (s:format(...)) end
 
@@ -222,12 +259,12 @@ function readfile(f)
 end
 
 local env = {null=null,LOG=LOG,DEBUG=1,INFO=2,NOTICE=3,WARN=4,ALERT=5,ERR=6,error=error,io=io,_print=print, sha1bin=sha1bin,is_websocket=is_websocket,upgrade_to_websocket=upgrade_to_websocket,_websocket_send=websocket_send, math=math, string=string,tostring=tostring,tonumber=tonumber, sleep=sleep,pairs=pairs,ipairs=ipairs,type=type,debug=debug,date=date,pcall=pcall,call=call,table=table,unpack=unpack,
-			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,llmdb=llmdb,
+			httpclient=httpclient,_jsonrpc_handle=jsonrpc_handle,llmdb=llmdb,open_llmdb=open_llmdb,close_llmdb=close_llmdb,llmdb_put=llmdb_put,llmdb_get=llmdb_get,llmdb_del=llmdb_del,
 			cache_set=cache_set,cache_get=cache_get,cache_del=cache_del,random_string=random_string,
-			cosocket=cosocket,allthreads=allthreads,newthread=newthread,wait=wait,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,cjson=cjson,json_encode=json_encode,json_decode=json_decode,memcached=memcached,redis=redis,coroutine=coroutine,
+			cosocket=cosocket,allthreads=allthreads,newthread=newthread,wait=wait,coroutine_wait=coroutine_wait,swop=swop,time=time,longtime=longtime,mysql=mysql,cjson=cjson,json_encode=json_encode,json_decode=json_decode,htmlspecialchars=htmlspecialchars,htmlspecialchars_decode=htmlspecialchars_decode,memcached=memcached,redis=redis,coroutine=coroutine,
 			is_dir=libfs.is_dir,is_file=libfs.is_file,mkdir=libfs.mkdir,rmdir=libfs.rmdir,readdir=libfs.readdir,stat=libfs.stat,unlink=libfs.unlink,_file_exists=file_exists,crypto=crypto,iconv=iconv,iconv_strlen=iconv_strlen,iconv_substr=iconv_substr,
 			trim=trim,strip=strip,explode=explode,implode=implode,escape=escape,escape_uri=escape_uri,unescape_uri=unescape_uri,
-			nl2br=_G['string-utils'].nl2br,
+			nl2br=_G['string-utils'].nl2br,md5=md5,
 			base64_encode=base64_encode,base64_decode=base64_decode,printf=printf,sprintf=sprintf,
 			hook=hook,get_hooks=get_hooks,host_route=host_route,_echo=echo,_die=die,_sendfile=sendfile,_header=header,_clear_header=clear_header,_loadfile=loadfile,_dofile=dofile,_loadtemplate=loadtemplate,_setfenv=setfenv,_setmetatable=setmetatable,_rawset=rawset,pcall=pcall,check_timeout=check_timeout,_setcookie=setcookie,_get_post_body=get_post_body,_dump=dump,print_error=print_error,CodeCache=CodeCache,FileExistsCache=FileExistsCache,_readfile=readfile,_loadstring=loadstring}
 

@@ -17,7 +17,7 @@ local _r = ('\r'):byte(1)
 local _n = ('\n'):byte(1)
 local bba = ('['):byte(1)
 local bbb = (']'):byte(1)
-	
+
 module(...)
 
 _VERSION = '0.1'
@@ -146,7 +146,7 @@ function loadtemplate(f, is_return, init)
 	_codes = concat(_codes)
 	local codes, err = loadstring('return function() '.._codes..' end', _f)
 	if _cache then _cache[_f] = codes _cache['h'] = true end
-	if not codes then codes = nil return nil, err end
+	if not codes then codes = nil return nil, err, _codes end
 	
 	return codes()
 end

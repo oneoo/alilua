@@ -15,15 +15,13 @@ int check_lua_sleep_timeouts()
     int k = now_4sleep % 64;
 
     sleep_timeout_t *m = timeout_links[k], *n = NULL;
+    lua_State *L = NULL;
 
     while(m) {
         n = m;
         m = m->next;
 
-        if(now >= n->timeout) {    // timeout
-            lua_resume(n->L, 0);
-
-            //delete_timeout ( n );
+        if(now_4sleep >= n->timeout) { // timeout
             {
                 if(n->uper) {
                     ((sleep_timeout_t *) n->uper)->next = n->next;
@@ -39,8 +37,12 @@ int check_lua_sleep_timeouts()
                     timeout_link_ends[k] = n->uper;
                 }
 
+                L = n->L;
                 free(n);
             }
+            if(L)
+            lua_resume(L, 0);
+            L = NULL;
         }
     }
 

@@ -23,7 +23,7 @@ else
 LIBLUA = -L$(LUAJIT) -lluajit-5.1
 SYS = $(shell gcc -dumpmachine)
 ifneq (, $(findstring i686-apple-darwin, $(SYS)))
-LIBLUA = -L$(LUAJIT) -lluajit-5.1 -pagezero_size 10000 -image_base 100000000
+LIBLUA = -L$(LUAJIT) -lluajit-5.1
 endif
 endif
 
@@ -36,7 +36,7 @@ INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0 -I/usr/local/inclu
 all: alilua
 
 alilua : main.o
-	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -o $@ $(CFLAGS) $(DEBUG) $(LIBLUA)
+	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -o $@ $(CFLAGS) $(DEBUG) $(LIBLUA) -pagezero_size 10000 -image_base 100000000
 
 main.o:
 	[ -f coevent/src/coevent.h ] || (git submodule init && git submodule update)
@@ -56,7 +56,7 @@ main.o:
 	[ -f lua-libs/bit.so ] || (cd coevent/lua-libs/LuaBitOp-1.0.2 && make LIBLUA="$(LIBLUA)" && cp bit.so ../../../lua-libs/ && make clean);
 	[ -f lua-libs/cjson.so ] || (cd coevent/lua-libs/lua-cjson-2.1.0 && make LIBLUA="$(LIBLUA)" && cp cjson.so ../../../lua-libs/ && make clean);
 	[ -f lua-libs/zlib.so ] || (cd coevent/lua-libs/lzlib && make LIBLUA="$(LIBLUA)" && cp zlib.so ../../../lua-libs/ && make clean && rm -rf *.o);
-	[ -f lua-libs/llmdb.so ] || (cd coevent/lua-libs/lightningmdb && make LIBLUA="$(LIBLUA)" && cp llmdb.so ../../../lua-libs/ && make clean && rm -rf *.o);
+	[ -f lua-libs/llmdb.so ] || (cd coevent/lua-libs/lightningmdb && make LIBLUA="$(LIBLUA)" && cp llmdb.so ../../../lua-libs/);
 
 .PHONY : clean zip install noopt hardmode
 
