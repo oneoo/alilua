@@ -37,7 +37,7 @@ void free_epd(epdata_t *epd)
     }
 
     if(epd->headers) {
-        if(epd->headers != &epd->iov) {
+        if(epd->headers != (unsigned char*)&epd->iov) {
             free(epd->headers);
         }
     }
@@ -234,7 +234,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, &t3, len, 0);
+                urldecode(&dst, (u_char**)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
 
                 len = strlen(t2);
@@ -247,7 +247,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, &t2, len, 0);
+                urldecode(&dst, (u_char**)&t2, len, 0);
                 p[dst - p] = '\0';
                 lua_setfield(L, -2, p);
                 free(p);
@@ -270,7 +270,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, &t3, len, 0);
+                urldecode(&dst, (u_char**)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
 
                 len = strlen(t2);
@@ -283,7 +283,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, &t2, len, 0);
+                urldecode(&dst, (u_char**)&t2, len, 0);
                 p[dst - p] = '\0';
                 lua_setfield(L, -2, p + (p[0] == ' ' ? 1 : 0));
                 free(p);
@@ -309,7 +309,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, &t3, len, 0);
+                urldecode(&dst, (u_char**)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
                 free(p);
                 //lua_pushstring(L, t3);
@@ -440,7 +440,7 @@ static void be_accept(int client_fd, struct in_addr client_addr)
 
     if(!epd) {
         close(client_fd);
-        return 0;
+        return;
     }
 
     epd->fd = client_fd;
