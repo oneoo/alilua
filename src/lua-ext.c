@@ -40,8 +40,11 @@ int check_lua_sleep_timeouts()
                 L = n->L;
                 free(n);
             }
-            if(L)
-            lua_resume(L, 0);
+
+            if(L) {
+                lua_resume(L, 0);
+            }
+
             L = NULL;
         }
     }
@@ -304,7 +307,7 @@ int network_sendfile(epdata_t *epd, const char *path)
             _clock->tm_min,
             _clock->tm_sec);
 
-    if(epd->if_modified_since && strcmp(_gmt_time, epd->if_modified_since) == 0){
+    if(epd->if_modified_since && strcmp(_gmt_time, epd->if_modified_since) == 0) {
         epd->response_header_length = 0;
         free(epd->iov[0].iov_base);
         epd->iov[0].iov_base = NULL;

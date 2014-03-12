@@ -124,7 +124,7 @@ void free_epd_request(epdata_t *epd)     /// for keepalive
     }
 
     if(epd->headers) {
-        if(epd->headers != (unsigned char*)&epd->iov) {
+        if(epd->headers != (unsigned char *)&epd->iov) {
             free(epd->headers);
         }
 
@@ -405,7 +405,7 @@ int network_be_read(se_ptr_t *ptr)
         }
 
         if(epd->data_len + n >= epd->buf_size) {
-            if(epd->headers == (unsigned char*)&epd->iov) {
+            if(epd->headers == (unsigned char *)&epd->iov) {
                 epd->headers = malloc(4096 * 2);
                 memcpy(epd->headers, &epd->iov, sizeof(epd->iov));
                 epd->buf_size = 4096 * 2;

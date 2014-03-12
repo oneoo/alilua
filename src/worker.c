@@ -22,7 +22,7 @@ static int other_simple_jobs()
     check_lua_sleep_timeouts();
     sync_serv_status();
 
-    if(now - dump_smp_link_time > 60){
+    if(now - dump_smp_link_time > 60) {
         dump_smp_link_time = now;
         dump_smp_link();
     }
@@ -37,7 +37,7 @@ void free_epd(epdata_t *epd)
     }
 
     if(epd->headers) {
-        if(epd->headers != (unsigned char*)&epd->iov) {
+        if(epd->headers != (unsigned char *)&epd->iov) {
             free(epd->headers);
         }
     }
@@ -245,7 +245,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char**)&t3, len, 0);
+                urldecode(&dst, (u_char **)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
 
                 len = strlen(t2);
@@ -258,7 +258,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, (u_char**)&t2, len, 0);
+                urldecode(&dst, (u_char **)&t2, len, 0);
                 p[dst - p] = '\0';
                 lua_setfield(L, -2, p);
                 free(p);
@@ -281,7 +281,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char**)&t3, len, 0);
+                urldecode(&dst, (u_char **)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
 
                 len = strlen(t2);
@@ -294,7 +294,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, (u_char**)&t2, len, 0);
+                urldecode(&dst, (u_char **)&t2, len, 0);
                 p[dst - p] = '\0';
                 lua_setfield(L, -2, p + (p[0] == ' ' ? 1 : 0));
                 free(p);
@@ -320,7 +320,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char**)&t3, len, 0);
+                urldecode(&dst, (u_char **)&t3, len, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
                 free(p);
                 //lua_pushstring(L, t3);
