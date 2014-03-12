@@ -250,6 +250,14 @@ int lua_clear_header(lua_State *L)
     return 0;
 }
 
+#ifdef __APPLE__
+#ifndef st_mtime
+#define st_mtime st_mtimespec.tv_sec
+#endif
+#endif
+static const char *DAYS_OF_WEEK[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+static const char *MONTHS_OF_YEAR[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+static char _gmt_time[32] = {0};
 int network_sendfile(epdata_t *epd, const char *path)
 {
     if(epd->process_timeout == 1) {
@@ -285,7 +293,31 @@ int network_sendfile(epdata_t *epd, const char *path)
 
     epd->iov_buf_count = 0;
 
+    struct tm *_clock;
+    _clock = gmtime(&(st.st_mtime));
+    sprintf(_gmt_time, "%s, %02d %s %04d %02d:%02d:%02d GMT",
+            DAYS_OF_WEEK[_clock->tm_wday],
+            _clock->tm_mday,
+            MONTHS_OF_YEAR[_clock->tm_mon],
+            _clock->tm_year + 1900,
+            _clock->tm_hour,
+            _clock->tm_min,
+            _clock->tm_sec);
+
+    if(epd->if_modified_since && strcmp(_gmt_time, epd->if_modified_since) == 0){
+        epd->response_header_length = 0;
+        free(epd->iov[0].iov_base);
+        epd->iov[0].iov_base = NULL;
+        epd->iov[0].iov_len = 0;
+        network_send_header(epd, "HTTP/1.1 304 Not Modified");
+        epd->response_sendfile_fd = -1;
+        epd->response_content_length = 0;
+        return 1;
+    }
+
     sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
+    network_send_header(epd, temp_buf);
+    sprintf(temp_buf, "Last-Modified: %s", _gmt_time);
     network_send_header(epd, temp_buf);
 
     if(temp_buf[14] == 't' && temp_buf[15] == 'e') {

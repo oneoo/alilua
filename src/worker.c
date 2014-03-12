@@ -129,6 +129,14 @@ int worker_process(epdata_t *epd, int thread_at)
     pt1 = epd->headers;
     int i = 0;
 
+    epd->uri = NULL;
+    epd->host = NULL;
+    epd->query = NULL;
+    epd->http_ver = NULL;
+    epd->referer = NULL;
+    epd->user_agent = NULL;
+    epd->if_modified_since = NULL;
+
     while(t1 = strtok_r(pt1, "\n", &pt1)) {
         if(++i == 1) {    /// first line
             t2 = strtok_r(t1, " ", &t1);
@@ -210,6 +218,9 @@ int worker_process(epdata_t *epd, int thread_at)
 
                 } else if(!epd->referer && t2[1] == 'e' && strcmp(t2, "referer") == 0) {
                     epd->referer = t3 + (t3[0] == ' ' ? 1 : 0);
+
+                } else if(!epd->if_modified_since && t2[1] == 'f' && strcmp(t2, "if-modified-since") == 0) {
+                    epd->if_modified_since = t3 + (t3[0] == ' ' ? 1 : 0);
                 }
             }
         }
@@ -445,7 +456,6 @@ static void be_accept(int client_fd, struct in_addr client_addr)
 
     epd->fd = client_fd;
     epd->client_addr = client_addr;
-    epd->stime = now;
     epd->status = STEP_WAIT;
     epd->headers = NULL;
     epd->header_len = 0;
