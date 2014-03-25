@@ -313,14 +313,16 @@ int network_sendfile(epdata_t *epd, const char *path)
         epd->iov[0].iov_base = NULL;
         epd->iov[0].iov_len = 0;
         network_send_header(epd, "HTTP/1.1 304 Not Modified");
+        close(epd->response_sendfile_fd);
         epd->response_sendfile_fd = -1;
         epd->response_content_length = 0;
         return 1;
     }
 
-    sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
-    network_send_header(epd, temp_buf);
     sprintf(temp_buf, "Last-Modified: %s", _gmt_time);
+    network_send_header(epd, temp_buf);
+
+    sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
     network_send_header(epd, temp_buf);
 
     if(temp_buf[14] == 't' && temp_buf[15] == 'e') {
