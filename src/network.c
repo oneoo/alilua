@@ -117,7 +117,7 @@ int network_send(epdata_t *epd, const char *data, int _len)
     return 1;
 }
 
-void free_epd_request(epdata_t *epd)     /// for keepalive
+void free_epd_request(epdata_t *epd) /// for keepalive
 {
     if(!epd) {
         return ;

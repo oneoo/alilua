@@ -259,7 +259,7 @@ int ws_send_data(epdata_t *epd, unsigned int fin, unsigned int rsv1, unsigned in
     unsigned int frame_mask = 0;
     int n;
 
-    memset(buf_256, 0, 256);
+    bzero(&buf_256, 256);
     buf_256[0] |= ((fin << 7) | (rsv1 << 6) | (rsv2 << 5) | (rsv3 << 4) | opcode);
 
     if(payload_len < 126) {

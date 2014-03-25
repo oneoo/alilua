@@ -18,7 +18,7 @@ int lua_f_cache_set(lua_State *L)
     const char *key = lua_tolstring(L, 1, &klen);
 
     if(klen > 48) {
-        memset(digest, 0, 32);
+        bzero(&digest, 32);
         md5((unsigned char *) key, klen, (unsigned char *) &digest);
 
         int i = 0;
@@ -76,7 +76,7 @@ int lua_f_cache_get(lua_State *L)
     }
 
     if(klen > 48) {
-        memset(digest, 0, 32);
+        bzero(&digest, 32);
         md5((unsigned char *) key, klen, (unsigned char *) &digest);
 
         int i = 0;
@@ -138,7 +138,7 @@ int lua_f_cache_del(lua_State *L)
     }
 
     if(klen > 48) {
-        memset(digest, 0, 32);
+        bzero(&digest, 32);
         md5((unsigned char *) key, klen, (unsigned char *) &digest);
 
         int i = 0;

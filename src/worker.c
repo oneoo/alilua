@@ -454,19 +454,13 @@ static void be_accept(int client_fd, struct in_addr client_addr)
         return;
     }
 
+    bzero(epd, sizeof(epdata_t));
+
     epd->fd = client_fd;
     epd->client_addr = client_addr;
     epd->status = STEP_WAIT;
-    epd->headers = NULL;
-    epd->header_len = 0;
-    epd->contents = NULL;
-    epd->data_len = 0;
     epd->content_length = -1;
-    epd->_header_length = 0;
     epd->keepalive = -1;
-    epd->process_timeout = 0;
-    epd->iov_buf_count = 0;
-    epd->websocket = NULL;
 
     epd->se_ptr = se_add(loop_fd, client_fd, epd);
     epd->timeout_ptr = add_timeout(epd, STEP_WAIT_TIMEOUT, timeout_handle);
