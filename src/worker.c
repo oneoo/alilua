@@ -138,7 +138,7 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->if_modified_since = NULL;
 
     while(t1 = strtok_r(pt1, "\n", &pt1)) {
-        if(++i == 1) {    /// first line
+        if(++i == 1) { /// first line
             t2 = strtok_r(t1, " ", &t1);
             t3 = strtok_r(t1, " ", &t1);
             epd->http_ver = strtok_r(t1, " ", &t1);
@@ -155,7 +155,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
             int len = strlen(epd->http_ver);
 
-            if(epd->http_ver[len - 1] == 13) {    // CR == 13
+            if(epd->http_ver[len - 1] == 13) { // CR == 13
                 epd->http_ver[len - 1] = '\0';
             }
 
@@ -189,12 +189,12 @@ int worker_process(epdata_t *epd, int thread_at)
                 *t3 = *t3 >= 'A' && *t3 <= 'Z' ? *t3 | 0x60 : *t3;
             }
 
-            t3 = t2 + strlen(t2) + 1;    //strtok_r ( t1, ":", &t1 )
+            t3 = t2 + strlen(t2) + 1; //strtok_r ( t1, ":", &t1 )
 
             if(t3) {
                 int len = strlen(t3);
 
-                if(t3[len - 1] == 13) {    /// 13 == CR
+                if(t3[len - 1] == 13) { /// 13 == CR
                     t3[len - 1] = '\0';
                 }
 
@@ -230,9 +230,9 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
 
-    lua_newtable(L);    /// _GET
+    lua_newtable(L); /// _GET
 
-    if(query) {    /// parse query string /?a=1&b=2
+    if(query) { /// parse query string /?a=1&b=2
         while(t1 = strtok_r(query, "&", &query)) {
             t2 = strtok_r(t1, "=", &t1);
             t3 = strtok_r(t1, "=", &t1);
@@ -266,7 +266,7 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
-    lua_newtable(L);    /// _COOKIE
+    lua_newtable(L); /// _COOKIE
 
     if(cookies) {
         while(t1 = strtok_r(cookies, ";", &cookies)) {
@@ -302,10 +302,10 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
-    lua_newtable(L);    /// _POST
+    lua_newtable(L); /// _POST
 
     if(is_form_post == 1
-       && epd->contents) {  /// parse post conents text=aa+bb&text2=%E4%B8%AD%E6%96%87+aa
+       && epd->contents) { /// parse post conents text=aa+bb&text2=%E4%B8%AD%E6%96%87+aa
         pt1 = epd->contents;
 
         while(t1 = strtok_r(pt1, "&", &pt1)) {
@@ -328,7 +328,7 @@ int worker_process(epdata_t *epd, int thread_at)
             }
         }
 
-    } else if(boundary_post) {    /// parse boundary body
+    } else if(boundary_post) { /// parse boundary body
         boundary_post += 9;
         int blen = strlen(boundary_post);
         int len = 0;
