@@ -33,7 +33,9 @@ endif
 endif
 
 ifneq (, $(findstring i686-apple-darwin, $(SYS)))
-MACGCC =  -pagezero_size 10000 -image_base 100000000
+MACGCC = -pagezero_size 10000 -image_base 100000000
+else
+MACGCC = -Wl,-E
 endif
 
 ifndef $(PREFIX)
