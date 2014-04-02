@@ -82,7 +82,6 @@ int websocket_be_read(se_ptr_t *ptr)
             serv_status.reading_counts++;
             epd->status = STEP_READ;
             epd->data_len = n;
-            epd->start_time = longtime();
 
         } else {
             epd->data_len += n;
@@ -119,9 +118,9 @@ int websocket_be_read(se_ptr_t *ptr)
 
             if(frame_opcode == WS_OPCODE_CLOSE) {
                 ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
-                close_client(epd);
-                epd = NULL;
-                return 0;
+                epd->websocket->ended = 1;
+
+                return 1;
             }
         }
 
@@ -155,11 +154,9 @@ int websocket_be_read(se_ptr_t *ptr)
                 epd->contents[payload_length - 1] = '\0';
 
                 epd->contents[payload_length - 1] = k;
-                lua_State *L = (lua_State *) epd->websocket->ML;
 
-                lua_rawgeti(L, LUA_REGISTRYINDEX, epd->websocket->websocket_handles);
-                lua_pushstring(L, "on");
-                lua_gettable(L, -2);
+                lua_State *L = epd->L;
+                lua_getglobal(L, "__websocket_on__");
 
                 if(lua_isfunction(L, -1)) {
                     lua_pushlstring(L, epd->contents, payload_length);
@@ -172,17 +169,17 @@ int websocket_be_read(se_ptr_t *ptr)
                             lua_pop(L, 1);
                         }
                     }
-
-                    lua_pop(L, 1);
                 }
+
             }
         }
     }
 
     if(epd && n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         //printf("error fd %d (%d) %s\n", epd->fd, errno, strerror(errno));
-        close_client(epd);
-        epd = NULL;
+
+        epd->websocket->ended = 1;
+
         return 0;
     }
 
@@ -211,7 +208,7 @@ int websocket_be_write(se_ptr_t *ptr)
             } else {
                 close_client(epd);
                 epd = NULL;
-                lua_State *L = (lua_State *) epd->websocket->L;
+                lua_State *L = (lua_State *) epd->L;
                 lua_pushnil(L);
                 lua_pushstring(L, "send error!");
                 lua_resume(L, 2);
@@ -230,7 +227,7 @@ int websocket_be_write(se_ptr_t *ptr)
         epd->websocket->data_len = -1;
         //printf ( "send finish %d\n", epd->websocket->data_len );
         se_be_read(epd->se_ptr, websocket_be_read);
-        lua_State *L = (lua_State *) epd->websocket->L;
+        lua_State *L = (lua_State *) epd->L;
         lua_pushboolean(L, 1);
         lua_resume(L, 1);
         return 0;
@@ -314,12 +311,19 @@ int ws_send_data(epdata_t *epd, unsigned int fin, unsigned int rsv1, unsigned in
 
 int lua_f_is_websocket(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
+    epdata_t *epd = NULL;
+
+    lua_getglobal(L, "__epd__");
+
+    if(lua_isuserdata(L, -1)) {
+        epd = lua_touserdata(L, -1);
     }
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    lua_pop(L, 1);
+
+    if(!epd) {
+        return 0;
+    }
 
     lua_pushboolean(L, epd->websocket ? 1 : 0);
     return 1;
@@ -332,13 +336,19 @@ net.inet.tcp.always_keepalive: 0 -> 1
 */
 int lua_f_upgrade_to_websocket(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
+    epdata_t *epd = NULL;
+
+    lua_getglobal(L, "__epd__");
+
+    if(lua_isuserdata(L, -1)) {
+        epd = lua_touserdata(L, -1);
     }
 
-    luaL_checktype(L, 2, LUA_TTABLE);
-    epdata_t *epd = lua_touserdata(L, 1);
+    lua_pop(L, 1);
+
+    if(!epd) {
+        return 0;
+    }
 
     if(epd->websocket) {
         return 0;
@@ -354,29 +364,64 @@ int lua_f_upgrade_to_websocket(lua_State *L)
 
     network_be_end(epd);
     //lua_pushnil ( L );
-    epd->websocket->ML = L;
-    epd->websocket->L = NULL;
     epd->websocket->data = NULL;
     epd->websocket->is_multi_frame = 0;
 
+    epd->websocket->ended = 0;
+
     epd->status = STEP_WAIT;
 
-    lua_pushvalue(L, 2);
-    epd->websocket->websocket_handles = luaL_ref(L, LUA_REGISTRYINDEX);
-    //printf ( "websocket_handles %d\n", epd->websocket->websocket_handles );
-    return 0;//yield at lua script
-    //return lua_yield ( L, 0 );
+    lua_pushvalue(L, 1);
+    lua_setglobal(L, "__websocket_on__");
+
+    return 0;
 }
 
-
-int lua_f_websocket_send(lua_State *L)
+int lua_f_check_websocket_close(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
+    epdata_t *epd = NULL;
+
+    lua_getglobal(L, "__epd__");
+
+    if(lua_isuserdata(L, -1)) {
+        epd = lua_touserdata(L, -1);
+    }
+
+    lua_pop(L, 1);
+
+    if(!epd) {
         return 0;
     }
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    if(epd->websocket->ended) {
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    return _lua_sleep(L, 10);
+}
+
+int lua_f_websocket_send(lua_State *L)
+{
+    epdata_t *epd = NULL;
+
+    lua_getglobal(L, "__epd__");
+
+    if(lua_isuserdata(L, -1)) {
+        epd = lua_touserdata(L, -1);
+    }
+
+    lua_pop(L, 1);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_error(L);
+        return 0;
+    }
+
+    if(epd->websocket->ended) {
+        return 0;
+    }
 
     if(!epd->websocket) {
         luaL_error(L, "not a websocket!");
@@ -389,26 +434,25 @@ int lua_f_websocket_send(lua_State *L)
         return 2;
     }
 
-    if(!lua_isstring(L, 2)) {
+    if(!lua_isstring(L, 1)) {
         lua_pushnil(L);
         lua_pushstring(L, "miss content!");
         return 0;
     }
 
     size_t len;
-    const char *data = lua_tolstring(L, 2, &len);
-    epd->websocket->L = L;
+    const char *data = lua_tolstring(L, 1, &len);
 
     int r = 0;
 
-    if(lua_gettop(L) < 3 && epd->websocket->is_multi_frame == 1) {       // mid frames
+    if(lua_gettop(L) < 2 && epd->websocket->is_multi_frame == 1) {       // mid frames
         r = ws_send_data(epd,  0, 0, 0, 0, WS_OPCODE_CONTINUE, len, data);
 
     } else {
-        if(lua_isboolean(L, 4)) {       // multi frames
-            if(lua_toboolean(L, 4) == 0) {       // first frame
-                r = ws_send_data(epd,  0, 0, 0, 0, (lua_isboolean(L, 3)
-                                                    && lua_toboolean(L, 3)) ? WS_OPCODE_BINARY : WS_OPCODE_TEXT, len, data);
+        if(lua_isboolean(L, 3)) {       // multi frames
+            if(lua_toboolean(L, 3) == 0) {       // first frame
+                r = ws_send_data(epd,  0, 0, 0, 0, (lua_isboolean(L, 2)
+                                                    && lua_toboolean(L, 2)) ? WS_OPCODE_BINARY : WS_OPCODE_TEXT, len, data);
                 epd->websocket->is_multi_frame = 1;
 
             } else { // last frame
@@ -417,8 +461,8 @@ int lua_f_websocket_send(lua_State *L)
             }
 
         } else { // single frame
-            r = ws_send_data(epd,  1, 0, 0, 0, (lua_isboolean(L, 3)
-                                                && lua_toboolean(L, 3)) ? WS_OPCODE_BINARY : WS_OPCODE_TEXT, len, data);
+            r = ws_send_data(epd,  1, 0, 0, 0, (lua_isboolean(L, 2)
+                                                && lua_toboolean(L, 2)) ? WS_OPCODE_BINARY : WS_OPCODE_TEXT, len, data);
         }
     }
 
@@ -429,7 +473,6 @@ int lua_f_websocket_send(lua_State *L)
     }
 
     if(r == 1) {
-        epd->websocket->L = L; // for lua_State ptr
         return lua_yield(L, 0);
     }
 

@@ -1,12 +1,12 @@
 #include "main.h"
 #include "config.h"
 #include "network.h"
+#include "vhost.h"
 
 int worker_n = 0;
 static char buf_4096[4096] = {0};
 static int working_at_fd = 0;
 extern lua_State *_L;
-extern int main_handle_ref;
 
 extern logf_t *ACCESS_LOG;
 
@@ -34,6 +34,11 @@ void free_epd(epdata_t *epd)
 {
     if(!epd) {
         return;
+    }
+
+    if(epd->L) {
+        release_lua_thread(epd->L);
+        epd->L = NULL;
     }
 
     if(epd->headers) {
@@ -75,16 +80,6 @@ void close_client(epdata_t *epd)
         epd->fd = -1;
     }
 
-    if(epd->websocket) {
-        if(epd->websocket->websocket_handles > 0) {
-            luaL_unref(epd->websocket->ML, LUA_REGISTRYINDEX, epd->websocket->websocket_handles);
-        }
-
-        lua_resume(epd->websocket->ML, 0);
-        free(epd->websocket);
-        epd->websocket = NULL;
-    }
-
     free_epd(epd);
 }
 
@@ -111,14 +106,23 @@ int worker_process(epdata_t *epd, int thread_at)
     //network_send_error(epd, 503, "Lua Error: main function not found !!!");return 0;
     //network_send(epd, "aaa", 3);network_be_end(epd);return 0;
     add_io_counts();
-    lua_State *L = (_L);   //lua_newthread
+    lua_State *L = epd->L;
 
-    if(main_handle_ref != 0) {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, main_handle_ref);
+    if(!L) {
+        epd->L = new_lua_thread(_L);
 
-    } else {
-        lua_getglobal(L, "main");
+        if(!epd->L) {
+            network_send_error(epd, 503, "Lua Error: Thread pool full !!!");
+            return 0;
+        }
+
+        lua_pushlightuserdata(epd->L, epd);
+        lua_setglobal(epd->L, "__epd__");
+
+        L = epd->L;
     }
+
+    update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
 
     int init_tables = 0;
     char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL, *query = NULL;
@@ -137,6 +141,8 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->user_agent = NULL;
     epd->if_modified_since = NULL;
 
+    epd->start_time = longtime();
+
     while(t1 = strtok_r(pt1, "\n", &pt1)) {
         if(++i == 1) { /// first line
             t2 = strtok_r(t1, " ", &t1);
@@ -148,7 +154,6 @@ int worker_process(epdata_t *epd, int thread_at)
 
             } else {
                 if(init_tables == 0) {
-                    lua_pushlightuserdata(L, epd);
                     lua_newtable(L);
                 }
             }
@@ -196,18 +201,32 @@ int worker_process(epdata_t *epd, int thread_at)
 
                 if(t3[len - 1] == 13) { /// 13 == CR
                     t3[len - 1] = '\0';
+                    len -= 1;
+                }
+
+                if(len < 1) {
+                    break;
                 }
 
                 lua_pushstring(L, t3 + (t3[0] == ' ' ? 1 : 0));
                 lua_setfield(L, -2, t2);
 
                 /// check content-type
-                if(t2[1] == 'o' && strcmp(t2, "content-type") == 0) {
+                if(t2[0] == 'h' && epd->host == NULL && strcmp(t2, "host") == 0) {
+                    char *_t = strstr(t3, ":");
+
+                    if(_t) {
+                        _t[0] = '\0';
+                    }
+
+                    epd->host = t3 + (t3[0] == ' ' ? 1 : 0);
+
+                } else if(t2[1] == 'o' && strcmp(t2, "content-type") == 0) {
                     if(stristr(t3, "x-www-form-urlencoded", len)) {
                         is_form_post = 1;
 
                     } else if(stristr(t3, "multipart/form-data", len)) {
-                        boundary_post = stristr(t3, "boundary=", len - 2);
+                        boundary_post = (char *)stristr(t3, "boundary=", len - 2);
                     }
 
                 } else if(!cookies && t2[1] == 'o' && strcmp(t2, "cookie") == 0) {
@@ -353,7 +372,7 @@ int worker_process(epdata_t *epd, int thread_at)
                 }
 
                 len = p2 - p1;
-                value = stristr(p1, "\r\n\r\n", len);
+                value = (char *)stristr(p1, "\r\n\r\n", len);
 
                 if(value && value[4] != '\0') {
                     value[0] = '\0';
@@ -420,6 +439,19 @@ int worker_process(epdata_t *epd, int thread_at)
         } while(p2);
     }
 
+    epd->vhost_root = get_vhost_root(epd->host);
+    i = strlen(epd->vhost_root);
+
+    while(i > 0) {
+        if(epd->vhost_root[--i] == '/') {
+            epd->vhost_root_len = i;
+            break;
+        }
+    }
+
+    lua_pushlstring(L, epd->vhost_root, epd->vhost_root_len); /// host root
+    lua_pushstring(L, epd->vhost_root + epd->vhost_root_len); /// index-route.lua file
+
     epd->contents = NULL;
     epd->content_length = 0;
     epd->iov[0].iov_base = NULL;
@@ -427,10 +459,9 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->iov[1].iov_base = NULL;
     epd->iov[1].iov_len = 0;
 
-    if(lua_pcall(L, 5, 0, 0)) {
+    if(lua_resume(L, 6) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
             LOGF(ERR, "Lua:error %s\n", lua_tostring(L, -1));
-            network_send_error(epd, 503, lua_tostring(L, -1));
             lua_pop(L, 1);
         }
     }
@@ -455,6 +486,13 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     }
 
     bzero(epd, sizeof(epdata_t));
+
+    epd->L = new_lua_thread(_L);
+
+    if(epd->L) {
+        lua_pushlightuserdata(epd->L, epd);
+        lua_setglobal(epd->L, "__epd__");
+    }
 
     epd->fd = client_fd;
     epd->client_addr = client_addr;

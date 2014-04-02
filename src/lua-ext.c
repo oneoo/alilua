@@ -1,55 +1,96 @@
 #include <sys/stat.h>
 
+#include "config.h"
 #include "main.h"
 #include "network.h"
 #include "lua-ext.h"
 
 static char temp_buf[8192];
 
-static sleep_timeout_t *timeout_links[64] = {0};
-static sleep_timeout_t *timeout_link_ends[64] = {0};
-static time_t now_4sleep;
+#define TIME_BUCKET_SIZE 640
+static sleep_timeout_t *timeout_links[TIME_BUCKET_SIZE] = {0};
+static sleep_timeout_t *timeout_link_ends[TIME_BUCKET_SIZE] = {0};
+static long now_4sleep;
+
 int check_lua_sleep_timeouts()
 {
-    time(&now_4sleep);
-    int k = now_4sleep % 64;
+    now_4sleep = longtime() / 10;
+    int _k = now_4sleep % TIME_BUCKET_SIZE;
+    int k = _k - 1;
 
-    sleep_timeout_t *m = timeout_links[k], *n = NULL;
-    lua_State *L = NULL;
+    for(; k < _k + 1; k++) {
+        sleep_timeout_t *m = timeout_links[k], *n = NULL;
+        lua_State *L = NULL;
 
-    while(m) {
-        n = m;
-        m = m->next;
+        while(m) {
+            n = m;
+            m = m->next;
 
-        if(now_4sleep >= n->timeout) { // timeout
-            {
-                if(n->uper) {
-                    ((sleep_timeout_t *) n->uper)->next = n->next;
+            if(now_4sleep >= n->timeout) { // timeout
+                {
+                    if(n->uper) {
+                        ((sleep_timeout_t *) n->uper)->next = n->next;
 
-                } else {
-                    timeout_links[k] = n->next;
+                    } else {
+                        timeout_links[k] = n->next;
+                    }
+
+                    if(n->next) {
+                        ((sleep_timeout_t *) n->next)->uper = n->uper;
+
+                    } else {
+                        timeout_link_ends[k] = n->uper;
+                    }
+
+                    L = n->L;
+                    free(n);
                 }
 
-                if(n->next) {
-                    ((sleep_timeout_t *) n->next)->uper = n->uper;
-
-                } else {
-                    timeout_link_ends[k] = n->uper;
+                if(L) {
+                    lua_resume(L, 0);
                 }
 
-                L = n->L;
-                free(n);
+                L = NULL;
             }
-
-            if(L) {
-                lua_resume(L, 0);
-            }
-
-            L = NULL;
         }
     }
 
     return 1;
+}
+
+int _lua_sleep(lua_State *L, int sec)
+{
+    now_4sleep = longtime() / 10;
+    sleep_timeout_t *n = malloc(sizeof(sleep_timeout_t));
+
+    if(!n) {
+        return 0;
+    }
+
+    sec /= 10;
+
+    if(sec < 1) {
+        sec = 1;
+    }
+
+    n->timeout = now_4sleep + sec;
+    n->uper = NULL;
+    n->next = NULL;
+    n->L = L;
+
+    int k = n->timeout % TIME_BUCKET_SIZE;
+
+    if(timeout_link_ends[k] == NULL) {
+        timeout_links[k] = n;
+        timeout_link_ends[k] = n;
+
+    } else { // add to link end
+        timeout_link_ends[k]->next = n;
+        n->uper = timeout_link_ends[k];
+        timeout_link_ends[k] = n;
+    }
+
+    return lua_yield(L, 0);
 }
 
 int lua_f_sleep(lua_State *L)
@@ -68,50 +109,41 @@ int lua_f_sleep(lua_State *L)
         return lua_yield(L, 0);       // for ever
     }
 
-    time(&now_4sleep);
+    return _lua_sleep(L, sec);
+}
 
-    sleep_timeout_t *n = malloc(sizeof(sleep_timeout_t));
+static epdata_t *get_epd(lua_State *L)
+{
+    epdata_t *epd = NULL;
 
-    if(!n) {
-        return 0;
+    lua_getglobal(L, "__epd__");
+
+    if(lua_isuserdata(L, -1)) {
+        epd = lua_touserdata(L, -1);
     }
 
-    n->timeout = now_4sleep + sec;
-    n->uper = NULL;
-    n->next = NULL;
-    n->L = L;
+    lua_pop(L, 1);
 
-    int k = n->timeout % 64;
-
-    if(timeout_link_ends[k] == NULL) {
-        timeout_links[k] = n;
-        timeout_link_ends[k] = n;
-
-    } else { // add to link end
-        timeout_link_ends[k]->next = n;
-        n->uper = timeout_link_ends[k];
-        timeout_link_ends[k] = n;
-    }
-
-    return lua_yield(L, 0);
+    return epd;
 }
 
 int lua_check_timeout(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
-    }
+    epdata_t *epd = get_epd(L);
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
 
     if(epd->websocket) {
         return 0;
     }
 
-    if(epd->process_timeout == 1) {
+    if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
         epd->keepalive = 0;
-        network_be_end(epd);
+        //network_be_end(epd);
         lua_pushstring(L, "Process Time Out!");
         lua_error(L);    /// stop lua script
     }
@@ -121,34 +153,35 @@ int lua_check_timeout(lua_State *L)
 
 int lua_header(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
-    }
+    epdata_t *epd = get_epd(L);
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
 
     if(epd->websocket) {
         return 0;
     }
 
-    if(lua_gettop(L) < 2) {
+    if(lua_gettop(L) < 1) {
         return 0;
     }
 
-    int t = lua_type(L, 2);
+    int t = lua_type(L, 1);
     size_t dlen = 0;
     const char *data = NULL;
 
     if(t == LUA_TSTRING) {
-        data = lua_tolstring(L, 2, &dlen);
+        data = lua_tolstring(L, 1, &dlen);
 
         if(stristr(data, "content-length", dlen) != data) {
             network_send_header(epd, data);
         }
 
     } else if(t == LUA_TTABLE) {
-        int len = lua_objlen(L, 2), i = 0;
+        int len = lua_objlen(L, 1), i = 0;
 
         for(i = 0; i < len; i++) {
             lua_pushinteger(L, i + 1);
@@ -168,50 +201,32 @@ int lua_header(lua_State *L)
 
     return 0;
 }
-
-int lua_echo(lua_State *L)
+static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
-    }
-
-    int nargs = lua_gettop(L);
-
-    if(nargs < 2) {
-        luaL_error(L, "miss content!");
-        return 0;
-    }
-
     size_t len = 0;
-    epdata_t *epd = lua_touserdata(L, 1);
 
-    if(epd->websocket) {
-        return 0;
-    }
-
-    if(lua_istable(L, 2)) {
-        len = lua_calc_strlen_in_table(L, 2, 2, 0 /* strict */);
+    if(lua_istable(L, 1)) {
+        len = lua_calc_strlen_in_table(L, 1, 2, 0 /* strict */);
 
         if(len < 1) {
-            return 0;
+            return;
         }
 
         char *buf = temp_buf;
 
-        if(len > 4096) {
+        if(len > 8192) {
             buf = malloc(len);
 
             if(!buf) {
-                return 0;
+                return;
             }
 
-            lua_copy_str_in_table(L, 2, buf);
+            lua_copy_str_in_table(L, 1, buf);
             network_send(epd, buf, len);
             free(buf);
 
         } else {
-            lua_copy_str_in_table(L, 2, buf);
+            lua_copy_str_in_table(L, 1, buf);
             network_send(epd, buf, len);
         }
 
@@ -219,7 +234,7 @@ int lua_echo(lua_State *L)
         const char *data = NULL;
         int i = 0;
 
-        for(i = 2; i <= nargs; i++) {
+        for(i = 1; i <= nargs; i++) {
             if(lua_isboolean(L, i)) {
                 if(lua_toboolean(L, i)) {
                     network_send(epd, "true", 4);
@@ -234,18 +249,46 @@ int lua_echo(lua_State *L)
             }
         }
     }
+}
+
+int lua_echo(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    int nargs = lua_gettop(L);
+
+    if(nargs < 1) {
+        luaL_error(L, "miss content!");
+        return 0;
+    }
+
+    size_t len = 0;
+
+    if(epd->websocket) {
+        return 0;
+    }
+
+    _lua_echo(epd, L, nargs);
 
     return 0;
 }
 
 int lua_clear_header(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
     }
 
-    epdata_t *epd = lua_touserdata(L, 1);
     epd->response_header_length = 0;
     free(epd->iov[0].iov_base);
     epd->iov[0].iov_base = NULL;
@@ -352,55 +395,93 @@ int network_sendfile(epdata_t *epd, const char *path)
 
 int lua_sendfile(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
     }
 
-    epdata_t *epd = lua_touserdata(L, 1);
-
-    if(epd->websocket) {
-        return 0;
-    }
-
-    if(!lua_isstring(L, 2)) {
+    if(!lua_isstring(L, 1)) {
         lua_pushnil(L);
         lua_pushstring(L, "Need a file path!");
         return 2;
     }
 
-    network_sendfile(epd, lua_tostring(L, 2));
+    size_t len = 0;
+    const char *fname = lua_tolstring(L, 1, &len);
+    //char *full_fname = malloc(epd->vhost_root_len + 1 + len);
+    char *full_fname = (char *)&temp_buf;
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len + 1);
+    memcpy(full_fname + epd->vhost_root_len + 1, fname, len);
 
+    network_sendfile(epd, full_fname);
+
+    //free(full_fname);
+
+    network_be_end(epd);
+    lua_pushnil(L);
+    lua_error(L); /// stop lua script
     return 0;
 }
 
-int lua_die(lua_State *L)
+int lua_end(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
         return 0;
     }
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    if(epd->status != STEP_PROCESS) {
+        return 0;
+    }
 
     if(epd->websocket || epd->status == STEP_SEND) {
         return 0;
     }
 
     network_be_end(epd);
+    return 0;
+}
+
+int lua_die(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        return 0;
+    }
+
+    int nargs = lua_gettop(L);
+    _lua_echo(epd, L, nargs);
+
+    if(epd->status != STEP_PROCESS) {
+        return 0;
+    }
+
+    if(epd->websocket || epd->status == STEP_SEND) {
+        return 0;
+    }
+
     lua_pushnil(L);
-    lua_error(L);    /// stop lua script
+    lua_error(L); /// stop lua script
+
+    //network_be_end(epd);
+
     return 0;
 }
 
 int lua_get_post_body(lua_State *L)
 {
-    if(!lua_isuserdata(L, 1)) {
-        luaL_error(L, "miss epd!");
-        return 0;
-    }
+    epdata_t *epd = get_epd(L);
 
-    epdata_t *epd = lua_touserdata(L, 1);
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
 
     if(epd->websocket) {
         return 0;
@@ -444,15 +525,92 @@ int lua_f_random_string(lua_State *L)
 
 int lua_f_file_exists(lua_State *L)
 {
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
     if(!lua_isstring(L, 1)) {
         lua_pushnil(L);
         lua_pushstring(L, "Need a file path!");
         return 2;
     }
 
-    const char *fname = lua_tostring(L, 1);
+    size_t len = 0;
+    const char *fname = lua_tolstring(L, 1, &len);
+    //char *full_fname = malloc(epd->vhost_root_len + 1 + len);
+    char *full_fname = (char *)&temp_buf;
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len + 1);
+    memcpy(full_fname + epd->vhost_root_len + 1, fname, len);
 
-    lua_pushboolean(L, access(fname, F_OK) != -1);
+    lua_pushboolean(L, access(full_fname, F_OK) != -1);
+
+    //free(full_fname);
 
     return 1;
 }
+
+int lua_f_readfile(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    if(!lua_isstring(L, -1)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Need a file path!");
+        return 2;
+    }
+
+    size_t len = 0;
+    const char *fname = lua_tolstring(L, 1, &len);
+    //char *full_fname = malloc(epd->vhost_root_len + len);
+    char *full_fname = (char *)&temp_buf;
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
+    memcpy(full_fname + epd->vhost_root_len , fname, len);
+    full_fname[epd->vhost_root_len + len] = '\0';
+
+    char *buf = NULL;
+    off_t reads = 0;
+    int fd = open(full_fname, O_RDONLY, 0);
+
+    //printf("readfile: %s\n", full_fname);
+    //free(full_fname);
+
+    if(fd > -1) {
+        reads = lseek(fd, 0L, SEEK_END);
+        lseek(fd, 0L, SEEK_SET);
+
+        if(reads > 8192) {
+            buf = malloc(reads);
+
+        } else {
+            buf = (char *)&temp_buf;
+        }
+
+        read(fd, buf, reads);
+
+        close(fd);
+
+        lua_pushlstring(L, buf, reads);
+
+        if(buf != (char *)&temp_buf) {
+            free(buf);
+        }
+
+        return 1;
+    }
+
+    lua_pushnil(L);
+    lua_pushstring(L, strerror(errno));
+
+    return 2;
+}
+

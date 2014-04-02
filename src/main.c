@@ -4,6 +4,7 @@
 
 #include "main.h"
 #include "config.h"
+#include "vhost.h"
 #include "worker.h"
 #include "network.h"
 #include "websocket.h"
@@ -20,8 +21,6 @@ int YAC_CACHE_SIZE = (1024 * 1024 * 2);
 lua_State *_L;
 logf_t *ACCESS_LOG = NULL;
 static char tbuf_4096[4096];
-
-int main_handle_ref = 0;
 
 static void on_master_exit_handler()
 {
@@ -63,8 +62,8 @@ int main(int argc, const char **argv)
 {
     bind_port = default_port;
     char *cwd = init_process_title(argc, argv);
-
     char *msg = NULL;
+    update_time();
 
     if(getarg("cache-size")) {
         msg = getarg("cache-size");
@@ -126,20 +125,27 @@ int main(int argc, const char **argv)
         lua_setglobal(_L, "HOST_ROUTE");
     }
 
+    if(!update_vhost_routes(getarg("host-route"))) {
+        LOGF(WARN, "no host-route file!");
+    }
+
     lua_register(_L, "echo", lua_echo);
     lua_register(_L, "sendfile", lua_sendfile);
     lua_register(_L, "header", lua_header);
     lua_register(_L, "clear_header", lua_clear_header);
+    lua_register(_L, "__end", lua_end);
     lua_register(_L, "die", lua_die);
     lua_register(_L, "get_post_body", lua_get_post_body);
     lua_register(_L, "check_timeout", lua_check_timeout);
     lua_register(_L, "is_websocket", lua_f_is_websocket);
     lua_register(_L, "upgrade_to_websocket", lua_f_upgrade_to_websocket);
     lua_register(_L, "websocket_send", lua_f_websocket_send);
+    lua_register(_L, "check_websocket_close", lua_f_check_websocket_close);
     lua_register(_L, "sleep", lua_f_sleep);
 
     lua_register(_L, "random_string", lua_f_random_string);
     lua_register(_L, "file_exists", lua_f_file_exists);
+    lua_register(_L, "readfile", lua_f_readfile);
 
     lua_register(_L, "cache_set", lua_f_cache_set);
     lua_register(_L, "cache_get", lua_f_cache_get);
@@ -157,13 +163,14 @@ int main(int argc, const char **argv)
             "package.path = '%s/lua-libs/?.lua;' .. package.path package.cpath = '%s/lua-libs/?.so;' .. package.cpath", cwd, cwd);
     luaL_dostring(_L, tbuf_4096);
 
-    if(luaL_loadfile(_L, "script.lua") || lua_resume(_L, 0)) {
+    lua_pushstring(_L, "__main");
+
+    if(luaL_loadfile(_L, "core.lua")) {
         LOGF(ERR, "Couldn't load file: %s\n", lua_tostring(_L, -1));
         exit(1);
     }
 
-    lua_getglobal(_L, "main");
-    main_handle_ref = luaL_ref(_L, LUA_REGISTRYINDEX);
+    lua_rawset(_L, LUA_GLOBALSINDEX);
 
     if(getarg("accesslog")) {
         ACCESS_LOG = open_log(getarg("accesslog"), 4096);

@@ -30,5 +30,6 @@ int ws_send_data(epdata_t *epd, unsigned int fin, unsigned int rsv1, unsigned in
 int lua_f_is_websocket(lua_State *L);
 int lua_f_upgrade_to_websocket(lua_State *L);
 int lua_f_websocket_send(lua_State *L);
+int lua_f_check_websocket_close(lua_State *L);
 
 #endif

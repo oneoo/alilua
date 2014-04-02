@@ -48,6 +48,7 @@ int network_send_header(epdata_t *epd, const char *header)
     }
 
     epd->response_header_length += 2;
+
     return 1;
 }
 
@@ -252,7 +253,7 @@ void network_be_end(epdata_t *epd)     // for lua function die
             char *p = NULL;
 
             if(epd->headers) {
-                p = stristr(epd->headers, "Accept-Encoding", epd->header_len);
+                p = (char *)stristr(epd->headers, "Accept-Encoding", epd->header_len);
             }
 
             if(p) {
@@ -435,7 +436,6 @@ int network_be_read(se_ptr_t *ptr)
             serv_status.reading_counts++;
             epd->status = STEP_READ;
             epd->data_len = n;
-            epd->start_time = longtime();
 
         } else {
             epd->data_len += n;
@@ -452,13 +452,13 @@ int network_be_read(se_ptr_t *ptr)
 
             } else {
                 _get_content_length = 1;
-                unsigned char *fp2 = stristr(epd->headers, "\r\n\r\n", epd->data_len);
+                unsigned char *fp2 = (unsigned char *)stristr(epd->headers, "\r\n\r\n", epd->data_len);
 
                 if(fp2) {
                     epd->_header_length = (fp2 - epd->headers) + 4;
 
                 } else {
-                    fp2 = stristr(epd->headers, "\n\n", epd->data_len);
+                    fp2 = (unsigned char *)stristr(epd->headers, "\n\n", epd->data_len);
 
                     if(fp2) {
                         epd->_header_length = (fp2 - epd->headers) + 2;
@@ -474,7 +474,7 @@ int network_be_read(se_ptr_t *ptr)
                 } else {
                     int flag = 0;
 
-                    unsigned char *fp = stristr(epd->headers, "\ncontent-length:", epd->data_len);
+                    unsigned char *fp = (unsigned char *)stristr(epd->headers, "\ncontent-length:", epd->data_len);
 
                     if(fp) {
                         int fp_at = fp - epd->headers + 16;
@@ -611,7 +611,7 @@ int network_be_read(se_ptr_t *ptr)
     }
 
     if(epd && n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        LOGF(ERR, "error fd %d (%d) %s\n", epd->fd, errno, strerror(errno));
+        LOGF(ERR, "error fd %d (%d) %s", epd->fd, errno, strerror(errno));
         close_client(epd);
         epd = NULL;
         return 0;
@@ -670,7 +670,7 @@ int network_be_write(se_ptr_t *ptr)
                     send_iov[send_iov_count + 1].iov_base = NULL;
 
                     if(be_len < 1) {
-                        LOGF(ERR, "%d writev error! %d %ld\n", epd->fd, send_iov_count, be_len);
+                        LOGF(ERR, "%d writev error! %d %ld", epd->fd, send_iov_count, be_len);
                         //exit ( 1 );
                     }
 

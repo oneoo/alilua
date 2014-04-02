@@ -3,7 +3,7 @@
 
 typedef struct {
     void *L;
-    time_t timeout;
+    long timeout;
     void *uper;
     void *next;
 } sleep_timeout_t;
@@ -15,9 +15,11 @@ int lua_header(lua_State *L);
 int lua_echo(lua_State *L);
 int lua_clear_header(lua_State *L);
 int lua_sendfile(lua_State *L);
+int lua_end(lua_State *L);
 int lua_die(lua_State *L);
 int lua_get_post_body(lua_State *L);
 int lua_f_random_string(lua_State *L);
 int lua_f_file_exists(lua_State *L);
+int lua_f_readfile(lua_State *L);
 
 #endif // _ALILUA_EXT_H

@@ -8,8 +8,7 @@ typedef struct {
     uint8_t frame_mask;
     uint8_t is_multi_frame;
     unsigned char frame_masking_key[4];
-    int websocket_handles;
-    void *ML;
+    int ended;
     void *L;
     void *data;
     uint32_t data_len;
@@ -21,6 +20,9 @@ typedef struct _epdata_t {
     void *timeout_ptr;
     uint8_t status;
     websocket_pt *websocket;
+    lua_State *L;
+    char *vhost_root;
+    int vhost_root_len;
 
     int fd;
     unsigned char *headers;
@@ -47,7 +49,7 @@ typedef struct _epdata_t {
 
     int response_sendfile_fd;
 
-#define _MAX_IOV_COUNT 242
+#define _MAX_IOV_COUNT 241
     struct iovec iov[_MAX_IOV_COUNT];
     int response_header_length;
     int iov_buf_count;
@@ -57,7 +59,7 @@ typedef struct _epdata_t {
     struct _epdata_t *job_next;
     struct _epdata_t *job_uper;
     struct in_addr client_addr;
-    char z[12]; /// align size to 4096
+    char z[4]; /// align size to 4096
 } epdata_t;
 
 typedef struct {
@@ -91,5 +93,8 @@ void sync_serv_status();
 void network_send_status(epdata_t *epd);
 static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
 int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count);
+
+lua_State *new_lua_thread(lua_State *_L);
+void release_lua_thread(lua_State *L);
 
 #endif /// _ALILUA_NETWORK_H
