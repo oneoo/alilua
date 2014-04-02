@@ -13,24 +13,11 @@ ifneq ($(SMPDEBUG),)
 DEBUG = -g -ggdb -D SMPDEBUG
 endif
 
-INCLUDES=-I/usr/local/include -I/usr/local/include/luajit-2.0 -I/usr/local/include/luajit-2.1
+INCLUDES=-I$(PWD)/luajit/src/
 
-ifeq ($(LUAJIT),)
-ifeq ($(LUA),)
-LIBLUA = -llua -L/usr/lib
-else
-LIBLUA = -L$(LUA) -llua -Wl,-rpath,$(LUA) -I$(LUA)/../include
-INCLUDES = -I$(LUAJIT)/../include/
-endif
-else
-LIBLUA = -L$(LUAJIT) -lluajit-5.1 -Wl,-rpath,$(LUAJIT) -I$(LUAJIT)/../include/luajit-2.0 -I$(LUAJIT)/../include/luajit-2.1
-INCLUDES = -I$(LUAJIT)/../include/luajit-2.0 -I$(LUAJIT)/../include/luajit-2.1
+LIBLUA = -L$(PWD)/luajit/src/ -lluajit-5.1 $(INCLUDES)
 SYS = $(shell gcc -dumpmachine)
-ifneq (, $(findstring i686-apple-darwin, $(SYS)))
-LIBLUA = -L$(LUAJIT) -lluajit-5.1 -Wl,-rpath,$(LUAJIT) -I$(LUAJIT)/../include/luajit-2.0 -I$(LUAJIT)/../include/luajit-2.1
-INCLUDES = -I$(LUAJIT)/../include/luajit-2.0 -I$(LUAJIT)/../include/luajit-2.1
-endif
-endif
+
 
 ifneq (, $(findstring i686-apple-darwin, $(SYS)))
 MACGCC = -pagezero_size 10000 -image_base 100000000
@@ -45,13 +32,14 @@ endif
 all: alilua
 
 alilua : main.o
-	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -o $@ $(CFLAGS) $(DEBUG) $(LIBLUA) $(LP) $(MACGCC)
+	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o $(CFLAGS) $(DEBUG) $(PWD)/luajit/src/libluajit.a $(LP) $(MACGCC) -o $@
 
 main.o:
 	[ -f coevent/src/coevent.h ] || (git submodule init && git submodule update)
 	[ -f coevent/merry/merry.h ] || (cd coevent && git submodule init && git submodule update)
 	[ -d objs ] || mkdir objs;
 	[ -d objs/merry ] || mkdir objs/merry;
+	[ -f luajit/src/libluajit.a ] || (cd luajit && make)
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/common/*.c $(DEBUG) $(INCLUDES);
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/se/*.c $(DEBUG) $(INCLUDES);
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/*.c $(DEBUG) $(INCLUDES);
@@ -73,6 +61,7 @@ clean:
 	rm -rf objs;
 	rm -rf alilua;
 	rm -rf lua-libs/*.so;
+	cd luajit && make clean;
 
 zip:
 	git archive --format zip --prefix alilua/ -o alilua-`git log --date=short --pretty=format:"%ad" -1`.zip HEAD
