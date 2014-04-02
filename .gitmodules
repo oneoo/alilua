@@ -1,3 +1,6 @@
 [submodule "coevent"]
 	path = coevent
 	url = https://github.com/oneoo/alilua-coevent-module
+[submodule "luajit"]
+	path = luajit
+	url = https://github.com/agentzh/luajit2.git
