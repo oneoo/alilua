@@ -15,7 +15,7 @@ endif
 
 INCLUDES=-I$(PWD)/luajit/src/
 
-LIBLUA = -L$(PWD)/luajit/src/ -lluajit-5.1 $(INCLUDES)
+LIBLUA = -L$(PWD)/luajit/src/ $(INCLUDES)
 SYS = $(shell gcc -dumpmachine)
 
 
@@ -32,7 +32,7 @@ endif
 all: alilua
 
 alilua : main.o
-	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o $(CFLAGS) $(DEBUG) $(PWD)/luajit/src/libluajit.a $(LP) $(MACGCC) -o $@
+	$(CC) objs/merry/*.o objs/deps/*.o objs/*.o -L$(PWD)/luajit/src/ $(PWD)/luajit/src/libluajit.a $(LP) $(MACGCC) $(CFLAGS) $(DEBUG) -o $@
 
 main.o:
 	[ -f coevent/src/coevent.h ] || (git submodule init && git submodule update)
