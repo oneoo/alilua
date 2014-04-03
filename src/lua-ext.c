@@ -303,7 +303,7 @@ int lua_clear_header(lua_State *L)
 #endif
 static const char *DAYS_OF_WEEK[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static const char *MONTHS_OF_YEAR[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-static char _gmt_time[32] = {0};
+static char _gmt_time[64] = {0};
 int network_sendfile(epdata_t *epd, const char *path)
 {
     if(epd->process_timeout == 1) {
@@ -362,10 +362,10 @@ int network_sendfile(epdata_t *epd, const char *path)
         return 1;
     }
 
-    sprintf(temp_buf, "Last-Modified: %s", _gmt_time);
+    sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
     network_send_header(epd, temp_buf);
 
-    sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
+    sprintf(temp_buf, "Last-Modified: %s", _gmt_time);
     network_send_header(epd, temp_buf);
 
     if(temp_buf[14] == 't' && temp_buf[15] == 'e') {
@@ -411,10 +411,11 @@ int lua_sendfile(lua_State *L)
 
     size_t len = 0;
     const char *fname = lua_tolstring(L, 1, &len);
-    //char *full_fname = malloc(epd->vhost_root_len + 1 + len);
+    //char *full_fname = malloc(epd->vhost_root_len + len);
     char *full_fname = (char *)&temp_buf;
-    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len + 1);
-    memcpy(full_fname + epd->vhost_root_len + 1, fname, len);
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
+    memcpy(full_fname + epd->vhost_root_len , fname, len);
+    full_fname[epd->vhost_root_len + len] = '\0';
 
     network_sendfile(epd, full_fname);
 
@@ -541,10 +542,11 @@ int lua_f_file_exists(lua_State *L)
 
     size_t len = 0;
     const char *fname = lua_tolstring(L, 1, &len);
-    //char *full_fname = malloc(epd->vhost_root_len + 1 + len);
+    //char *full_fname = malloc(epd->vhost_root_len + len);
     char *full_fname = (char *)&temp_buf;
-    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len + 1);
-    memcpy(full_fname + epd->vhost_root_len + 1, fname, len);
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
+    memcpy(full_fname + epd->vhost_root_len, fname, len);
+    full_fname[epd->vhost_root_len + len] = '\0';
 
     lua_pushboolean(L, access(full_fname, F_OK) != -1);
 

@@ -1,31 +1,31 @@
-local mysql = require('mysql')
-local cjson = require('cjson')
-local memcached = require('memcached')
-local redis = require('redis')
-local date = require('date')
-local loadtemplate = require('loadtemplate')
-local httpclient = require('httpclient')
---local llmdb = require('llmdb-client')
+mysql = require('mysql')
+cjson = require('cjson')
+memcached = require('memcached')
+redis = require('redis')
+date = require('date')
+loadtemplate = require('loadtemplate')
+httpclient = require('httpclient')
+llmdb = require('llmdb-client')
 
-local md5 = function(s) return crypto.evp.digest('md5', s) end
+md5 = function(s) return crypto.evp.digest('md5', s) end
 function string:trim() return self:gsub('^%s*(.-)%s*$', '%1') end
 function trim(s) return s:trim() end
 function string:startsWith(s, i) return _G['string-utils'].startsWith(self, s, i) end
 function string:endsWith(s, i) return _G['string-utils'].endsWith(self, s, i) end
-local explode = _G['string-utils'].explode
-local implode = table.concat
-local escape = _G['string-utils'].escape
-local escape_uri = _G['string-utils'].escape_uri
-local unescape_uri = _G['string-utils'].unescape_uri
-local base64_encode = _G['string-utils'].base64_encode
-local base64_decode = _G['string-utils'].base64_decode
-local strip = _G['string-utils'].strip
-local iconv = _G['string-utils'].iconv
-local iconv_strlen = _G['string-utils'].iconv_strlen
-local iconv_substr = _G['string-utils'].iconv_substr
-local json_encode = cjson.encode
-local json_decode = cjson.decode
-local htmlspecialchars = function(value)
+explode = _G['string-utils'].explode
+implode = table.concat
+escape = _G['string-utils'].escape
+escape_uri = _G['string-utils'].escape_uri
+unescape_uri = _G['string-utils'].unescape_uri
+base64_encode = _G['string-utils'].base64_encode
+base64_decode = _G['string-utils'].base64_decode
+strip = _G['string-utils'].strip
+iconv = _G['string-utils'].iconv
+iconv_strlen = _G['string-utils'].iconv_strlen
+iconv_substr = _G['string-utils'].iconv_substr
+json_encode = cjson.encode
+json_decode = cjson.decode
+htmlspecialchars = function(value)
     if not value then
         return ''
     end
@@ -43,7 +43,7 @@ local htmlspecialchars = function(value)
     }
     return (value:gsub("[&\"'<>]", subst))
 end
-local htmlspecialchars_decode = function(value)
+htmlspecialchars_decode = function(value)
     if not value then
         return ''
     end
@@ -188,36 +188,6 @@ __yield = coroutine.yield
 _print = print
 print = echo
 
-function cacheTable(ttl)
-    if not ttl or type(ttl) ~= 'number' or ttl < 2 then
-        local t = {}
-        local mt = {__newindex = function (t1,k,v) return false end}
-        setmetatable(t, mt)
-        return t
-    end
-    ttl = ttl/2
-    local t = {{},{},{}}
-    local proxy = {}
-    local mt = {
-        __index = function (t1,k)
-            local p = math.floor(os.time()/ttl)
-            if t[(p-2)%3+1].__has then t[(p-2)%3+1] = {} end
-            return t[(p)%3+1][k]
-        end,
-        __newindex = function (t1,k,v)
-            local p = math.floor(os.time()/ttl)
-            t[p%3+1][k] = v
-            t[(p+1)%3+1][k] = v
-            t[p%3+1].__has = 1
-        end
-    }
-    setmetatable(proxy, mt)
-    return proxy
-end
-if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end
-local CodeCache = cacheTable(CODE_CACHE_TTL)
-local FileExistsCache = cacheTable(CODE_CACHE_TTL/2)
-
 function setcookie(name, value, expire, path, domain)
     if not name then return false end
     if not value then value = '' expire = time()-86400 end
@@ -269,7 +239,7 @@ function dofile(f)
     if not f then return nil end
     local f1,e = loadfile(f)
     if f1 then
-        return pcall(f1)
+        f1()
     end
     return nil,e
 end
@@ -287,17 +257,24 @@ function dotemplate(f, ir)
     local f1, e, c = loadtemplate(f, ir)
     if not f1 then
         print(e)
+    else
+        f1 = f1()
     end
     return f1, e, c
 end
 
 while 1 do
     headers,_GET,_COOKIE,_POST,__root,index = __yield()
-    local r,e = dofile(index)
+    local r,e = loadfile(index)
     if e then
         print_error(e)
     else
-        __end()
+        local r,e = pcall(r)
+        if e then
+            print_error(e)
+        else
+            __end()
+        end
     end
 end
 

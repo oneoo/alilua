@@ -15,7 +15,7 @@ endif
 
 INCLUDES=-I$(PWD)/luajit/src/
 
-LIBLUA = -L$(PWD)/luajit/src/ $(INCLUDES)
+LIBLUA = -L$(PWD)/luajit/src/ $(INCLUDES) $(PWD)/luajit/src/libluajit.a
 SYS = $(shell gcc -dumpmachine)
 
 

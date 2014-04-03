@@ -49,6 +49,7 @@ static void help()
            "    --accesslog=path \t\taccess log file path\n"
            "    --process=n \t\tstart how many workers\n"
            "    --host-route=path \t\tSpecial route file path\n"
+           "    --app=path \t\t\tSpecial app file path\n"
            "    --code-cache-ttl \t\tnumber of code cache time(sec) default 60 sec\n"
            "    --cache-size \t\tsize of YAC shared memory cache (1m or 4096000k)\n"
            "    --daemon[=n]     \t\tdaemon mode(start n workers)\n"
@@ -125,8 +126,8 @@ int main(int argc, const char **argv)
         lua_setglobal(_L, "HOST_ROUTE");
     }
 
-    if(!update_vhost_routes(getarg("host-route"))) {
-        LOGF(WARN, "no host-route file!");
+    if(!update_vhost_routes(getarg("host-route")) && !getarg("app")) {
+        LOGF(WARN, "no host-rout or app arguments! using defalut settings.");
     }
 
     lua_register(_L, "echo", lua_echo);
@@ -164,6 +165,38 @@ int main(int argc, const char **argv)
     luaL_dostring(_L, tbuf_4096);
 
     lua_pushstring(_L, "__main");
+
+    luaL_dostring(_L, ""
+                  "function cacheTable(ttl) " \
+                  "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
+                  "        local t = {} " \
+                  "        local mt = {__newindex = function (t1,k,v) return false end} " \
+                  "        setmetatable(t, mt) " \
+                  "        return t " \
+                  "    end " \
+                  "    ttl = ttl/2 " \
+                  "    local t = {{},{},{}} " \
+                  "    local proxy = {} " \
+                  "    local mt = { " \
+                  "        __index = function (t1,k) " \
+                  "            local p = math.floor(os.time()/ttl) " \
+                  "            if t[(p-2)%3+1].__has then t[(p-2)%3+1] = {} end " \
+                  "            return t[(p)%3+1][k] " \
+                  "        end, " \
+                  "        __newindex = function (t1,k,v) " \
+                  "            local p = math.floor(os.time()/ttl) " \
+                  "            t[p%3+1][k] = v " \
+                  "            t[(p+1)%3+1][k] = v " \
+                  "            t[p%3+1].__has = 1 " \
+                  "        end " \
+                  "    } " \
+                  "    setmetatable(proxy, mt) " \
+                  "    return proxy " \
+                  "end " \
+                  "if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end " \
+                  "CodeCache = cacheTable(CODE_CACHE_TTL) " \
+                  "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)"
+                 );
 
     if(luaL_loadfile(_L, "core.lua")) {
         LOGF(ERR, "Couldn't load file: %s\n", lua_tostring(_L, -1));

@@ -8,6 +8,7 @@ local fopen=io.open
 local ceil=math.ceil
 local time=os.time
 local CODE_CACHE_TTL=CODE_CACHE_TTL
+local readfile=readfile
 local print=print
 
 local bs = ('{'):byte(1)
@@ -54,13 +55,9 @@ function loadtemplate(f, is_return, init)
 	
 	--print('loadtemplate', f)
 	
-	local html = ''
-	local __f = fopen(f)
-	if __f then
-		html = __f:read('*all')
-		__f:close()
-	else
-		return false, 'Template file ['..f..'] not found!'
+	local html = readfile(f)
+	if not html then
+		return nil, 'Template file ['..f..'] not found!'
 	end
 
 	local _codes = {}
