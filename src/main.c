@@ -206,7 +206,7 @@ int main(int argc, const char **argv)
     lua_rawset(_L, LUA_GLOBALSINDEX);
 
     if(getarg("accesslog")) {
-        ACCESS_LOG = open_log(getarg("accesslog"), 4096);
+        ACCESS_LOG = open_log(getarg("accesslog"), 40960);
 
         if(!ACCESS_LOG) {
             LOGF(ERR, "Couldn't open access log file: %s", getarg("accesslog"));
