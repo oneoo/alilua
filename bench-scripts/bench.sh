@@ -2,13 +2,12 @@
  
 if ! [ -x "$(type -P ab)" ]; then
   echo "ERROR: script requires apache bench"
-  echo "For Debian and friends get it with 'apt-get install apache2-utils'"
-  echo "If you have it, perhaps you don't have permissions to run it, try 'sudo $(basename $0)'"
   exit 1
 fi
 
 runs=$1
-site=$2
+step=$2
+site=$3
 
 log=ab.$(echo $site | sed -r 's|https?://||;s|/$||;s|/|_|g;').log
  
@@ -22,9 +21,9 @@ rm bench.csv.tmp
 
 echo "Level Loads Mem qps T min men +- median max" > bench.csv.tmp
 
-for((run=100;run<=$runs;run+=100)); do
+for((run=$step;run<=$runs;run+=$step)); do
   st=$(date +%s)
-  ab -r -k -c $run -n 500000 $site >> $log
+  ab -r -k -c $run -n 50000 $site >> $log
   se=$(date +%s)
 
   rm /tmp/a.log;
