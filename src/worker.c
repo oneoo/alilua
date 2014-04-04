@@ -2,6 +2,7 @@
 #include "config.h"
 #include "network.h"
 #include "vhost.h"
+#include "../coevent/src/coevent.h"
 
 int worker_n = 0;
 static char buf_4096[4096] = {0};
@@ -524,6 +525,7 @@ void worker_main(int _worker_n)
 
     /// 进入 loop 处理循环
     loop_fd = se_create(4096);
+    set_loop_fd(loop_fd, _worker_n); // for coevent module
     se_accept(loop_fd, server_fd, be_accept);
 
     se_loop(loop_fd, 10, other_simple_jobs); // loop

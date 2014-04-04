@@ -19,15 +19,17 @@ sudo yum install openssl-devel
 
 ###Install LuaJit
 
-wget http://luajit.org/download/LuaJIT-2.0.2.tar.gz
+** aLiLua v0.4 included luajit-v2.1, no 3dpart required **
+
+~~ wget http://luajit.org/download/LuaJIT-2.0.2.tar.gz ~~
 
 tar zxf LuaJIT-2.0.2.tar.gz
 
 cd LuaJIT-2.0.2
 
-make
+~~ make ~~
 
-sudo make install
+~~ sudo make install ~~
 
 make clean
 
@@ -35,19 +37,11 @@ sudo ldconfig
 
 ###Install aLiLua
 
-$git clone https://github.com/yo2oneoo/alilua.git
+$git clone https://github.com/oneoo/alilua.git
 
 $cd alilua
 
 $sudo make install clean
-
-Using LuaJit
---------
-$sudo make install LUAJIT=/usr/local/lib
-
-Setting Prefix
---------
-$sudo make install PREFIX=/usr/local/alilua
 
 Start
 ======
@@ -62,10 +56,11 @@ CommandLine Options
 	--process=number     workers
 	--log=file path      access log
 	--host-route         Special route file path
+    --app				Special app file path
 	--code-cache-ttl     number of code cache time(sec) default 60 sec
 	--cache-size         size of YAC shared memory cache (1m or 4096000k)
 
-Config
+Default Config file
 ======
 
 $vi /usr/local/alilua/host-route.lua
