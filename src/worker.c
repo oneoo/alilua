@@ -126,7 +126,7 @@ int worker_process(epdata_t *epd, int thread_at)
     update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
 
     int init_tables = 0;
-    char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL, *query = NULL;
+    char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL;
 
     int is_form_post = 0;
     char *boundary_post = NULL;
@@ -178,9 +178,9 @@ int worker_process(epdata_t *epd, int thread_at)
                 lua_setfield(L, -2, "uri");
 
                 if(t2) {
-                    epd->query = t2;
-                    query = t2;
-                    lua_pushstring(L, t2);
+                    epd->query = (t2 - 1);
+                    epd->query[0] = '?';
+                    lua_pushstring(L, epd->query);
                     lua_setfield(L, -2, "query");
                 }
             }
@@ -252,37 +252,42 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_newtable(L); /// _GET
 
-    if(query) { /// parse query string /?a=1&b=2
-        while(t1 = strtok_r(query, "&", &query)) {
-            t2 = strtok_r(t1, "=", &t1);
-            t3 = strtok_r(t1, "=", &t1);
+    if(epd->query) { /// parse query string /?a=1&b=2
+        char *last = NULL;
+        int plen = 0;
+        int qlen = strlen(epd->query) - 1;
 
-            if(t2 && t3 && strlen(t2) > 0 && strlen(t3) > 0) {
-                size_t len, dlen;
+        t1 = (char *)strsplit(epd->query + 1, qlen, "&", &last, &plen);
+        char kk[256] = {0};
+
+        while(t1) {
+            char *last2 = NULL;
+            int plen2 = 0;
+            int plen3 = 0;
+
+            t2 = (char *)strsplit(t1, plen, "=", &last2, &plen2);
+            t3 = (char *)strsplit(t1, plen, "=", &last2, &plen3);
+
+            if(t2 && plen2 > 0 && plen3 > 0 && plen2 <= 4096 && plen3 <= 4096) {
+                size_t dlen;
                 u_char *p;
                 u_char *src, *dst;
-                len = strlen(t3);
-                p = malloc(len);
+
+                p = (u_char *)&buf_4096;
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char **)&t3, len, 0);
+                urldecode(&dst, (u_char **)&t3, plen3, 0);
                 lua_pushlstring(L, (char *) p, dst - p);
 
-                len = strlen(t2);
-
-                if(len > 4096) {
-                    free(p);
-                    p = malloc(len);
-                }
-
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, (u_char **)&t2, len, 0);
+                urldecode(&dst, (u_char **)&t2, plen2, 0);
                 p[dst - p] = '\0';
                 lua_setfield(L, -2, p);
-                free(p);
             }
+
+            t1 = (char *)strsplit(epd->query + 1, qlen, "&", &last, &plen);
         }
     }
 

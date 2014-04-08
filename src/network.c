@@ -213,17 +213,16 @@ void network_end_process(epdata_t *epd)
     long ttime = longtime();
 
     if(ACCESS_LOG) log_writef(ACCESS_LOG,
-                                  "%s - - [%s] %s \"%s %s%s%s %s\" %d %d \"%s\" \"%s\" %.3f\n",
+                                  "%s - - [%s] %s \"%s %s %s\" %d %d %d \"%s\" \"%s\" %.3f\n",
                                   inet_ntoa(epd->client_addr),
                                   now_lc,
                                   epd->host ? epd->host : "-",
                                   epd->method ? epd->method : "-",
                                   epd->uri ? epd->uri : "/",
-                                  epd->query ? "?" : "",
-                                  epd->query ? epd->query : "",
                                   epd->http_ver ? epd->http_ver : "-",
                                   response_code,
-                                  epd->response_content_length + epd->response_header_length,
+                                  epd->response_content_length,
+                                  epd->response_content_length - epd->response_header_length,
                                   epd->referer ? epd->referer : "-",
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
@@ -321,7 +320,7 @@ void network_be_end(epdata_t *epd)     // for lua function die
                     (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
                     (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
                     epd->response_content_length + (gzip_data == 1 ? 10 : 0));
-            epd->response_header_length += len;
+            epd->response_header_length = len;
         }
 
         if(len < 4086 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
