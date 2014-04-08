@@ -34,9 +34,29 @@ int network_send_header(epdata_t *epd, const char *header)
             return 0;
         }
 
-        if(header[0] != 'H' && header[1] != 'T') {
+        if(header[0] != 'H' && header[4] != '/') {
             memcpy(epd->iov[0].iov_base, "HTTP/1.1 200 OK\r\n", 17);
             epd->response_header_length += 17;
+        }
+    }
+
+    if(header[0] == 'H' && header[4] == '/') {
+        char *_ohs = epd->iov[0].iov_base;
+
+        if(_ohs[0] == 'H' && _ohs[4] == '/') {
+            int l = 0;
+
+            for(l = 0; l < epd->response_header_length; l++) {
+                if(_ohs[l] == '\n') {
+                    l += 1;
+                    memmove(epd->iov[0].iov_base + len + 2, epd->iov[0].iov_base + l, epd->response_header_length - l);
+                    memcpy(epd->iov[0].iov_base, header, len);
+                    memcpy(epd->iov[0].iov_base + len, "\r\n", 2);
+                    epd->response_header_length -= l;
+                    epd->response_header_length += len + 2;
+                    return 1;
+                }
+            }
         }
     }
 

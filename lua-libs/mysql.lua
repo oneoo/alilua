@@ -1065,6 +1065,26 @@ local function parse_sql(...)
     return sql
 end
 
+function _M.get_var(self, query)
+    local sql = parse_sql(query)
+    local _sql = sql:upper()
+    
+    if not _sql:find(' LIMIT ') then
+        local i = sql:find(';')
+        if not i then i = #sql else i = i-1 end
+        sql = sql:sub(1,i)..' LIMIT 1'..sql:sub(i+1)
+    end
+    
+    local bytes, err = send_query(self, sql)
+    if not bytes then
+        return nil, "failed to send query: " .. err
+    end
+
+    local r, err = read_result(self)
+    if r and #r < 1 then r = nil else r = r[1][next(r[1])] end
+    return r, err
+end
+
 function _M.get_row(self, query)
     local sql = parse_sql(query)
     local _sql = sql:upper()
