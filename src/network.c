@@ -203,7 +203,7 @@ void network_end_process(epdata_t *epd)
                                   epd->query ? epd->query : "",
                                   epd->http_ver ? epd->http_ver : "-",
                                   response_code,
-                                  epd->response_content_length - epd->response_header_length,
+                                  epd->response_content_length + epd->response_header_length,
                                   epd->referer ? epd->referer : "-",
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
