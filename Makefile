@@ -73,9 +73,10 @@ install:all
 	[ -d $(PREFIX)/lua-libs ] || mkdir $(PREFIX)/lua-libs;
 	! [ -f $(PREFIX)/alilua ] || mv $(PREFIX)/alilua $(PREFIX)/alilua.old
 	cp alilua $(PREFIX)/
-	cp script.lua $(PREFIX)/
-	cp alilua-index.lua $(PREFIX)/
+	cp core.lua $(PREFIX)/
 	[ -f $(PREFIX)/host-route.lua ] || cp host-route.lua $(PREFIX)/
+	cp route.lua $(PREFIX)/
+	cp index.lua $(PREFIX)/
 	cp lua-libs/*.lua $(PREFIX)/lua-libs/
 	cp lua-libs/*.so $(PREFIX)/lua-libs/
 

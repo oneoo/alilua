@@ -22,4 +22,6 @@ int lua_f_random_string(lua_State *L);
 int lua_f_file_exists(lua_State *L);
 int lua_f_readfile(lua_State *L);
 
+int lua_f_router(lua_State *L);
+
 #endif // _ALILUA_EXT_H

@@ -40,7 +40,7 @@ int update_vhost_routes(char *f)
     lua_getglobal(L, "host_route");
     lua_pushnil(L);
 
-    while(lua_next(L, -2)) {  // <== here is your mistake
+    while(lua_next(L, -2)) {
         if(lua_isstring(L, -2)) {
             size_t host_len = 0;
             char *host = (char *)lua_tolstring(L, -2, &host_len);

@@ -1,0 +1,214 @@
+#include "config.h"
+#include "main.h"
+#include "network.h"
+#include "lua-ext.h"
+#include <regex.h>
+
+static char *v_p[100] = {0};
+static int v_p_len[100] = {0};
+static char *v_c[100] = {0};
+static int v_p_count = 0;
+
+static char *v_p2[100] = {0};
+static int v_p_len2[100] = {0};
+static int v_p_count2 = 0;
+
+static int match_max = 0;
+static int match_max_len = 0;
+static int the_match_pat = 0;
+
+#define REGEX_CACHE_SIZE 102400
+static regex_t *regex_cache[REGEX_CACHE_SIZE] = {0};
+static uint32_t regex_cache_key[REGEX_CACHE_SIZE] = {0};
+
+static int is_match(const char *rule, const char *uri)
+{
+    static regex_t *re = NULL;
+    static regmatch_t pm[100];
+    int m = strlen(rule);
+    char *nr = malloc(m);
+    int i = 0, gk = 0, nr_len = 0;;
+
+    v_p_count2 = 1;
+
+    for(i = 0; i < m; i++) {
+
+        if(rule[i] == ':') {
+            gk = 1;
+            v_p2[v_p_count2] = rule + (i + 1);
+
+        } else {
+            if((rule[i] == '(' || rule[i] == '[')) {
+                if(gk == 1){
+                gk = 0;
+                v_p_len2[v_p_count2] = (rule + i) - v_p2[v_p_count2];
+                }else{
+                    v_p2[v_p_count2] = NULL;
+                }
+            }
+        }
+
+        if(gk == 0) {
+            nr[nr_len++] = rule[i];
+        }
+
+        if(rule[i] == '(') {
+            v_p_count2 ++;
+        }
+    }
+
+    nr[nr_len] = '\0';
+    //printf("== %s  %s\n", nr, uri);
+
+    uint32_t key = fnv1a_32(nr, nr_len);
+    int _key = key%REGEX_CACHE_SIZE;
+    re = regex_cache[_key];
+
+    if(re && regex_cache_key[_key] != key){
+        re = NULL;
+        regfree(regex_cache[_key]);
+        free(regex_cache[_key]);
+        regex_cache[_key] = NULL;
+    }
+
+    if(!re){
+        re = malloc(sizeof(regex_t));
+        if(!re || regcomp(re, nr, REG_EXTENDED | REG_ICASE) != 0) {
+            LOGF(ERR, "Router Failed to compile regex '%s'\n", rule);
+            if(re)regfree(re);
+            free(nr);
+            return 0;
+        }
+        regex_cache[_key] = re;
+        regex_cache_key[_key] = key;
+    }
+
+    unsigned int g = 0;
+    int reti = regexec(re, uri, 100, pm, 0);
+
+    if(!reti) {
+        for(g = 0; g < 100; g++) {
+            if(pm[g].rm_so == (size_t) - 1) {
+                break; // No more groups
+            }
+        }
+
+        if(g > match_max || (g >= match_max && nr_len > match_max_len)) {
+            for(v_p_count=0;v_p_count<v_p_count2;v_p_count++){
+                free(v_c[v_p_count]);
+                v_c[v_p_count] = NULL;
+                v_p[v_p_count] = v_p2[v_p_count];
+                v_p_len[v_p_count] = v_p_len2[v_p_count];
+            }
+
+            match_max = g;
+            match_max_len = nr_len;
+
+            for(g = 1; g < match_max; g++) {
+                if(v_p[g]){
+                    free(v_c[g]);
+                    v_c[g] = malloc(pm[g].rm_eo - pm[g].rm_so+1);
+                    memcpy(v_c[g], uri + pm[g].rm_so, pm[g].rm_eo - pm[g].rm_so);
+                    v_c[g][pm[g].rm_eo - pm[g].rm_so] = '\0';
+                    //printf("M: %d %s  %d\n", g, v_c[g], v_p_len[g]);
+                }else v_c[g] = NULL;
+            }
+        }else{
+            g = 0;
+        }
+
+    } else {
+        // char msgbuf[100];
+        // regerror(reti, &re, msgbuf, sizeof(msgbuf));
+        // fprintf(stderr, "Regex match failed: %s\n", msgbuf);
+    }
+
+    //regfree(&re);
+    free(nr);
+
+    return g;
+}
+
+int lua_f_router(lua_State *L)
+{
+    if(!lua_isstring(L, 1)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "excepted uri");
+        return 2;
+    }
+
+    if(!lua_istable(L, 2)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "excepted router table");
+        return 2;
+    }
+
+    const char *uri = lua_tostring(L, 1);
+    int uri_len = strlen(uri);
+
+    if(uri_len < 1 || uri[0] != '/') {
+        lua_pushnil(L);
+        lua_pushstring(L, "not a uri");
+        return 2;
+    }
+
+    int pat = 0;
+    lua_pushvalue(L, 2);
+    lua_pushnil(L);
+    match_max = 0;
+
+    while(lua_next(L, -2)) {
+        if(lua_isstring(L, -2)) {
+            //printf("== %s\n", lua_tostring(L, -2));
+            if(is_match(lua_tostring(L, -2), uri)){
+                the_match_pat = pat;
+                //printf("++++\n");
+            }
+        }
+
+        lua_pop(L, 1);
+        pat++;
+
+        if(pat >= 100) {
+            break;
+        }
+    }
+
+    
+    pat = 0;
+    lua_pushvalue(L, 2);
+    lua_pushnil(L);
+
+    while(lua_next(L, -2)) {
+        if(lua_isstring(L, -2)) {
+            if(match_max > 0 && pat == the_match_pat){
+                //printf("== %s\n", lua_tostring(L, -2));
+                lua_pushvalue(L, -1);
+                lua_pop(L, 1);
+
+                lua_createtable(L, 0, match_max);
+                int i = 0;
+
+                for(i=1;i<match_max;i++){
+                    if(!v_p[i])continue;
+                    lua_pushlstring(L, v_p[i], v_p_len[i]);
+                    lua_pushstring(L, v_c[i]);
+                    free(v_c[i]);
+                    v_c[i] = NULL;
+                    lua_settable(L, -3); /* 3rd element from the stack top */
+                }
+
+                return 2;
+            }
+        }
+
+        lua_pop(L, 1);
+        pat++;
+
+        if(pat >= 100) {
+            break;
+        }
+    }
+    
+    return 0;
+}

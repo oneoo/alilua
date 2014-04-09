@@ -22,12 +22,12 @@ static int other_simple_jobs()
 {
     check_lua_sleep_timeouts();
     sync_serv_status();
-
+#ifdef SMPDEBUG
     if(now - dump_smp_link_time > 60) {
         dump_smp_link_time = now;
         dump_smp_link();
     }
-
+#endif
     return 1; // return 0 will be exit the worker
 }
 

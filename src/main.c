@@ -144,6 +144,8 @@ int main(int argc, const char **argv)
     lua_register(_L, "check_websocket_close", lua_f_check_websocket_close);
     lua_register(_L, "sleep", lua_f_sleep);
 
+    lua_register(_L, "router", lua_f_router);
+
     lua_register(_L, "random_string", lua_f_random_string);
     lua_register(_L, "file_exists", lua_f_file_exists);
     lua_register(_L, "readfile", lua_f_readfile);
@@ -167,6 +169,8 @@ int main(int argc, const char **argv)
     lua_pushstring(_L, "__main");
 
     luaL_dostring(_L, ""
+                  "_router = router " \
+                  "function router(u,t) local f,p = _router(u,t) if f then f(p) return true else return nil end end " \
                   "function cacheTable(ttl) " \
                   "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
                   "        local t = {} " \
