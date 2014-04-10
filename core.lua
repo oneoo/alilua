@@ -211,6 +211,18 @@ function setcookie(name, value, expire, path, domain)
     header(cookie)
 end
 
+_file_exists = file_exists
+function file_exists(f)
+    if not f then return nil end
+    local _f = __root..f
+    local exists = FileExistsCache[_f]
+    if exists == nil then
+        exists = _file_exists(f)
+        FileExistsCache[_f] = exists
+    end
+    return exists
+end
+
 _loadstring = loadstring
 function loadstring(s,c)
     local f,e = _loadstring(s,c)
@@ -230,8 +242,10 @@ function loadfile(f)
             f1,e = loadstring(f1, f)
             CodeCache[_f] = f1
         end
+    else
+        setfenv(f1, _G)
     end
-    
+
     return f1, e
 end
 
@@ -246,11 +260,17 @@ end
 
 _loadtemplate = loadtemplate
 function loadtemplate(f)
-    local r,e,c = _loadtemplate(f)
-    if r then
-        setfenv(r, _G)
+    local _f = __root..f
+    local f1,e = CodeCache[_f]
+    if not f1 then
+        f1,e = _loadtemplate(f)
+        CodeCache[_f] = f1
     end
-    return r,e,c
+
+    if f1 then
+        setfenv(f1, _G)
+    end
+    return f1,e,c
 end
 
 function dotemplate(f, ir)

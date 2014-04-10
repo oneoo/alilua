@@ -9,8 +9,6 @@ routes['^/user/:user_id(.*)'] = function(r)
 end
 
 routes['^/(.*)'] = function(r)
-    _print(r)
-    for k,v in pairs(r) do _print(k,v) end
     dofile('/index.lua')
 end
 
@@ -20,5 +18,5 @@ others you want :)
 
 if not router(headers.uri, routes) then
     header('HTTP/1.1 404 Not Found')
-    die('File Not Found!')
+    echo('File Not Found!')
 end
