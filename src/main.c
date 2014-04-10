@@ -127,7 +127,9 @@ int main(int argc, const char **argv)
     }
 
     if(!update_vhost_routes(getarg("host-route")) && !getarg("app")) {
-        LOGF(WARN, "no host-rout or app arguments! using defalut settings.");
+        LOGF(WARN, "no host-route or app arguments! using defalut settings.");
+        sprintf(tbuf_4096, "%s/host-route.lua", process_chdir);
+        update_vhost_routes(tbuf_4096);
     }
 
     lua_register(_L, "echo", lua_echo);
