@@ -2,8 +2,7 @@ local llmdb = require('llmdb')
 local insert = table.insert
 local remove = table.remove
 local ceil = math.ceil
-
-local llmdb_pool = {{},{},{}}
+local print = print
 
 local _M = { _VERSION = '0.1', 
             MDB_SET_KEY = llmdb.MDB_SET_KEY, 
@@ -17,31 +16,9 @@ local _M = { _VERSION = '0.1',
 
 local mt = { __index = _M }
 
-ct = newthread(function(llmdb_pool)
-    while true do
-        --print('try')
-        local n = ceil((time()-120)/60)%3 +1
-
-        for k,v in pairs(llmdb_pool[n]) do
-            e = remove(v, 1)
-            while e do
-                --print('close', e)
-                e:close()
-                e = remove(v, 1)
-            end
-        end
-        
-        sleep(10)
-    end
-end, llmdb_pool)
-
 function _M.new(self, path)
     local e = nil
     local n = ceil(time()/60)%3 +1
-
-    if llmdb_pool[n][path] and #llmdb_pool[n][path] > 0 then
-        e = remove(llmdb_pool[n][path], 1)
-    end
 
     if not e then
         e = llmdb.env_create()
@@ -59,12 +36,8 @@ end
 
 function _M.close(self)
     local db = self.db
-    local n = ceil(time()/60)%3 +1
-    if not llmdb_pool[n][db:get_path()] then
-        llmdb_pool[n][db:get_path()] = {}
-    end
-
-    insert(llmdb_pool[n][db:get_path()], db)
+    db:close()
+    self.db = nil
 end
 
 function _M.put(self, key, value)
