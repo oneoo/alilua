@@ -253,9 +253,11 @@ function dofile(f)
     if not f then return nil end
     local f1,e = loadfile(f)
     if f1 then
-        f1()
+        f1 = f1()
+    else
+        error(e)
     end
-    return nil,e
+    return f1,e
 end
 
 _loadtemplate = loadtemplate
@@ -286,17 +288,17 @@ end
 while 1 do
     headers,_GET,_COOKIE,_POST,__root,index = __yield()
     local r,e = loadfile(index)
+    if r and not e then
+        r,e = pcall(r)
+    end
+
     if e then
         print_error(e)
     else
-        local r,e = pcall(r)
-        if e then
-            print_error(e)
-        else
-            if on_shutdown then pcall(on_shutdown) end
-            __end()
-        end
+        __end()
     end
+
+    if on_shutdown then pcall(on_shutdown) end
 end
 
 LOG(ERR,"------------------thread ended")
