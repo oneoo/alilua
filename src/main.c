@@ -171,8 +171,6 @@ int main(int argc, const char **argv)
     lua_pushstring(_L, "__main");
 
     luaL_dostring(_L, ""
-                  "_router = router " \
-                  "function router(u,t) local f,p = _router(u,t) if f then f(p) return true else return nil end end " \
                   "function cacheTable(ttl) " \
                   "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
                   "        local t = {} " \

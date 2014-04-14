@@ -8,6 +8,7 @@ int worker_n = 0;
 static char buf_4096[4096] = {0};
 static int working_at_fd = 0;
 extern lua_State *_L;
+extern int lua_routed;
 
 extern logf_t *ACCESS_LOG;
 
@@ -23,10 +24,12 @@ static int other_simple_jobs()
     check_lua_sleep_timeouts();
     sync_serv_status();
 #ifdef SMPDEBUG
+
     if(now - dump_smp_link_time > 60) {
         dump_smp_link_time = now;
         dump_smp_link();
     }
+
 #endif
     return 1; // return 0 will be exit the worker
 }
@@ -464,6 +467,8 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->iov[0].iov_len = 0;
     epd->iov[1].iov_base = NULL;
     epd->iov[1].iov_len = 0;
+
+    lua_routed = 0;
 
     if(lua_resume(L, 6) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {

@@ -285,6 +285,20 @@ function dotemplate(f, ir)
     return f1, e, c
 end
 
+_router = router
+function router(u,t,p)
+    local f,p = _router(u,t,p)
+    if f then
+        f(p)
+        return true
+    elseif p then
+        dofile(p)
+        return true
+    else
+        return nil
+    end
+end
+
 while 1 do
     headers,_GET,_COOKIE,_POST,__root,index = __yield()
     local r,e = loadfile(index)
