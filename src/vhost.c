@@ -23,7 +23,7 @@ int update_vhost_routes(char *f)
     luaL_dostring(L, "host_route={} ");
 
     if(luaL_dofile(L, f)) {
-        LOGF(ERR, "Couldn't load file: %s\n", lua_tostring(L, -1));
+        LOGF(ERR, "Couldn't load file: %s", lua_tostring(L, -1));
         return 0;
     }
 

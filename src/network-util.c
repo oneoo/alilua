@@ -246,7 +246,7 @@ int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count)
                            Z_DEFAULT_STRATEGY);
 
     if(Z_OK != ret) {
-        LOGF(ERR, "deflateInit error: %d\r\n", ret);
+        LOGF(ERR, "deflateInit error: %d", ret);
         return 0;
     }
 
@@ -283,7 +283,7 @@ int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count)
 
             if(ret == Z_STREAM_ERROR) {
                 deflateEnd(&stream);
-                LOGF(ERR, "Z_STREAM_ERROR | Z_MEM_ERROR\n");
+                LOGF(ERR, "Z_STREAM_ERROR | Z_MEM_ERROR");
                 return 0;
             }
 
@@ -307,7 +307,7 @@ int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count)
 
                         if(iov[diov_count].iov_base == NULL) {
                             deflateEnd(&stream);
-                            LOGF(ERR,  "gzip: iov buf count error!\n");
+                            LOGF(ERR,  "gzip: iov buf count error!");
                             return 0;
                         }
                     }
@@ -331,7 +331,7 @@ int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count)
 
                     } else {
                         deflateEnd(&stream);
-                        LOGF(ERR,  "gzip: iov buf count error!\n");
+                        LOGF(ERR,  "gzip: iov buf count error!");
                         return 0;
                     }
                 }

@@ -91,7 +91,7 @@ int main(int argc, const char **argv)
     lua_State *L = luaL_newstate();
 
     if(!L) {
-        LOGF(ERR, "error for luaL_newstate\n");
+        LOGF(ERR, "error for luaL_newstate");
         exit(1);
     }
 
@@ -203,7 +203,7 @@ int main(int argc, const char **argv)
                  );
 
     if(luaL_loadfile(_L, "core.lua")) {
-        LOGF(ERR, "Couldn't load file: %s\n", lua_tostring(_L, -1));
+        LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
         exit(1);
     }
 

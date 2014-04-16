@@ -472,7 +472,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     if(lua_resume(L, 6) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
-            LOGF(ERR, "Lua:error %s\n", lua_tostring(L, -1));
+            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
             lua_pop(L, 1);
         }
     }
