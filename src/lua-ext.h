@@ -1,15 +1,6 @@
 #ifndef _ALILUA_EXT_H
 #define _ALILUA_EXT_H
 
-typedef struct {
-    void *L;
-    long timeout;
-    void *uper;
-    void *next;
-} sleep_timeout_t;
-
-int check_lua_sleep_timeouts();
-int lua_f_sleep(lua_State *L);
 int lua_check_timeout(lua_State *L);
 int lua_header(lua_State *L);
 int lua_echo(lua_State *L);

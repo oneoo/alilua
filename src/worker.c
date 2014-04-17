@@ -21,7 +21,7 @@ static void on_exit_handler()
 static int dump_smp_link_time = 0;
 static int other_simple_jobs()
 {
-    check_lua_sleep_timeouts();
+    coevnet_module_do_other_jobs();
     sync_serv_status();
 #ifdef SMPDEBUG
 

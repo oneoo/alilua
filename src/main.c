@@ -144,7 +144,6 @@ int main(int argc, const char **argv)
     lua_register(_L, "upgrade_to_websocket", lua_f_upgrade_to_websocket);
     lua_register(_L, "websocket_send", lua_f_websocket_send);
     lua_register(_L, "check_websocket_close", lua_f_check_websocket_close);
-    lua_register(_L, "sleep", lua_f_sleep);
 
     lua_register(_L, "router", lua_f_router);
 

@@ -53,7 +53,7 @@ local function httprequest(url, params)
 		end
 	end
 	if params.timeout then
-		sock:settimeout(params.timeout/(ngx and 1 or 1000))
+		sock:settimeout(params.timeout)
 	end
 	
 	local host = url:match('^([^/]+)')
