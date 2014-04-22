@@ -3,6 +3,23 @@
 static vhost_conf_t *vhost_conf_head = NULL;
 static lua_State *L = NULL;
 
+int max_request_header = 0; // default no limit
+int max_request_body = 0;
+int code_cache_ttl = 60; // set 0 to disable code cache
+
+static int get_int_in_table(lua_State *L, const char *name)
+{
+    int r = 0;
+    lua_getfield(L, -1, name);
+
+    if(lua_isnumber(L, -1)) {
+        r = (int)lua_tonumber(L, -1);
+    }
+
+    lua_pop(L, 1);
+    return r;
+}
+
 int update_vhost_routes(char *f)
 {
     if(!f) {
@@ -20,7 +37,7 @@ int update_vhost_routes(char *f)
 
     luaL_openlibs(L);
 
-    luaL_dostring(L, "host_route={} ");
+    luaL_dostring(L, "config={} host_route={}");
 
     if(luaL_dofile(L, f)) {
         LOGF(ERR, "Couldn't load file: %s", lua_tostring(L, -1));
@@ -36,6 +53,31 @@ int update_vhost_routes(char *f)
 
         last_vcf = last_vcf->next;
     }
+
+    lua_getglobal(L, "config");
+
+    max_request_header = get_int_in_table(L, "max-request-header");
+
+    if(max_request_header < 100) {
+        LOGF(ERR, "config error: max-request-header=%d, use default 0", max_request_header);
+        max_request_header = 0;
+    }
+
+    max_request_body = get_int_in_table(L, "max-request-body");
+
+    if(max_request_body < 1024) {
+        LOGF(ERR, "config error: max-request-body=%d, use default 0", max_request_body);
+        max_request_body = 0;
+    }
+
+    code_cache_ttl = get_int_in_table(L, "code-cache-ttl");
+
+    if(code_cache_ttl < 0) {
+        LOGF(ERR, "config error: max-request-body=%d, use default 60", code_cache_ttl);
+        code_cache_ttl = 60;
+    }
+
+    lua_pop(L, 1);
 
     lua_getglobal(L, "host_route");
     lua_pushnil(L);

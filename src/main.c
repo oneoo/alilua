@@ -22,6 +22,8 @@ lua_State *_L;
 logf_t *ACCESS_LOG = NULL;
 static char tbuf_4096[4096];
 
+extern int code_cache_ttl;
+
 static void on_master_exit_handler()
 {
     LOGF(ALERT, "master exited");
@@ -116,11 +118,6 @@ int main(int argc, const char **argv)
     luaL_openlibs(_L);    /* Load Lua libraries */
     lua_gc(_L, LUA_GCRESTART, 0);
 
-    if(getarg("code-cache-ttl")) {       /// default = 60s
-        lua_pushnumber(_L, atoi(getarg("code-cache-ttl")));
-        lua_setglobal(_L, "CODE_CACHE_TTL");
-    }
-
     if(getarg("host-route")) {
         lua_pushstring(_L, getarg("host-route"));
         lua_setglobal(_L, "HOST_ROUTE");
@@ -130,6 +127,15 @@ int main(int argc, const char **argv)
         LOGF(WARN, "no host-route or app arguments! using defalut settings.");
         sprintf(tbuf_4096, "%s/host-route.lua", process_chdir);
         update_vhost_routes(tbuf_4096);
+    }
+
+    if(getarg("code-cache-ttl")) {       /// default = 60s
+        lua_pushnumber(_L, atoi(getarg("code-cache-ttl")));
+        lua_setglobal(_L, "CODE_CACHE_TTL");
+
+    } else {
+        lua_pushnumber(_L, code_cache_ttl);
+        lua_setglobal(_L, "CODE_CACHE_TTL");
     }
 
     lua_register(_L, "echo", lua_echo);

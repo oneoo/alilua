@@ -7,6 +7,8 @@
 static char temp_buf[8192];
 
 extern logf_t *ACCESS_LOG;
+extern int max_request_header;
+extern int max_request_body;
 
 static struct iovec send_iov[_MAX_IOV_COUNT];
 static int send_iov_count = 0;
@@ -75,7 +77,7 @@ int network_send_header(epdata_t *epd, const char *header)
 int network_send(epdata_t *epd, const char *data, int _len)
 {
     if(epd->process_timeout == 1) {
-        return;
+        return 0;
     }
 
     if(_len < 1 || epd->response_sendfile_fd > -1) {
@@ -113,7 +115,6 @@ int network_send(epdata_t *epd, const char *data, int _len)
             len = _len;
         }
     }
-
 
     if(len > 0) {
         memcpy(epd->iov[epd->iov_buf_count].iov_base + epd->iov[epd->iov_buf_count].iov_len, data, len);
@@ -408,8 +409,6 @@ int network_be_read(se_ptr_t *ptr)
                 epd->iov[1].iov_base = NULL;
                 epd->iov[1].iov_len = 0;
                 network_send_error(epd, 503, "memory error!");
-                close_client(epd);
-                serv_status.reading_counts--;
                 return 0;
             }
 
@@ -442,8 +441,6 @@ int network_be_read(se_ptr_t *ptr)
                     epd->iov[1].iov_base = NULL;
                     epd->iov[1].iov_len = 0;
                     network_send_error(epd, 503, "memory error!");
-                    close_client(epd);
-                    serv_status.reading_counts--;
                     return 0;
                 }
 
@@ -485,6 +482,13 @@ int network_be_read(se_ptr_t *ptr)
                 }
             }
 
+            /// check request header length
+            if(max_request_header > 0 && (epd->_header_length > max_request_header || (epd->_header_length < 1
+                                          && epd->data_len > max_request_header))) {
+                network_send_error(epd, 413, "Request Header Too Large");
+                return 0;
+            }
+
             if(epd->_header_length > 0 && epd->content_length < 0) {
                 /// not POST or PUT request
                 if(_get_content_length == 0 && epd->headers[0] != 'P' && epd->headers[0] != 'p') {
@@ -512,6 +516,13 @@ int network_be_read(se_ptr_t *ptr)
                         if(flag) {
                             epd->content_length = atoi(fp);
                             epd->headers[i] = _oc;
+
+                            /// check request body length
+                            if(max_request_body > 0 && epd->content_length > max_request_body) {
+                                network_send_error(epd, 413, "Request Entity Too Large");
+                                return 0;
+                            }
+
                         }
 
                         if(stristr(epd->headers + (epd->_header_length - 60), "100-continue", epd->_header_length)) {
@@ -529,16 +540,12 @@ int network_be_read(se_ptr_t *ptr)
                 epd->iov[1].iov_base = NULL;
                 epd->iov[1].iov_len = 0;
                 network_send_error(epd, 411, "");
-                close_client(epd);
-                epd = NULL;
-                serv_status.reading_counts--;
 
                 break;
             }
         }
 
-        if(epd->_header_length > 0 && ((epd->content_length < 1 && epd->_header_length > 0)
-                                       || epd->content_length <= epd->data_len - epd->_header_length)) {
+        if(epd->_header_length > 0 && (epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length)) {
             /// start job
             epd->header_len = epd->_header_length;
             epd->headers[epd->data_len] = '\0';

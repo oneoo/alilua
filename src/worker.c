@@ -458,10 +458,8 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
-    
-
     memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len);
-    sprintf(buf_4096+epd->vhost_root_len, "/?.lua;%s/lua-libs/?.lua;", process_chdir);
+    sprintf(buf_4096 + epd->vhost_root_len, "/?.lua;%s/lua-libs/?.lua;", process_chdir);
 
     lua_pushstring(L, buf_4096);
     lua_getglobal(L, "package");
@@ -521,6 +519,7 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     epd->status = STEP_WAIT;
     epd->content_length = -1;
     epd->keepalive = -1;
+    epd->response_sendfile_fd = -1;
 
     epd->se_ptr = se_add(loop_fd, client_fd, epd);
     epd->timeout_ptr = add_timeout(epd, STEP_WAIT_TIMEOUT, timeout_handle);
