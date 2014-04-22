@@ -458,6 +458,17 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
+    
+
+    memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len);
+    sprintf(buf_4096+epd->vhost_root_len, "/?.lua;%s/lua-libs/?.lua;", process_chdir);
+
+    lua_pushstring(L, buf_4096);
+    lua_getglobal(L, "package");
+    lua_insert(L, -2); //-1 bufres -2 pachage
+    lua_setfield(L, -2, "path"); //-1: path -2: package
+    lua_pop(L, 1); //void
+
     lua_pushlstring(L, epd->vhost_root, epd->vhost_root_len); /// host root
     lua_pushstring(L, epd->vhost_root + epd->vhost_root_len); /// index-route.lua file
 

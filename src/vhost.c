@@ -52,7 +52,7 @@ int update_vhost_routes(char *f)
 
                 if(root_len < 1024) {
                     if(!in_link) {
-                        //LOGF(ERR, "init vhost: %s => %s", host, root);
+                        LOGF(ALERT, "init vhost: %s => %s", host, root);
 
                         vhost_conf_t *vcf = malloc(sizeof(vhost_conf_t));
                         memcpy(vcf->host, host, host_len);
