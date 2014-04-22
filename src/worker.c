@@ -19,6 +19,7 @@ static void on_exit_handler()
 }
 
 static int dump_smp_link_time = 0;
+static int flush_logs_timer = 0;
 static int other_simple_jobs()
 {
     coevnet_module_do_other_jobs();
@@ -31,6 +32,13 @@ static int other_simple_jobs()
     }
 
 #endif
+
+    if(++flush_logs_timer > 100){
+        flush_logs_timer = 0;
+        sync_logs(LOGF_T);
+        sync_logs(ACCESS_LOG);
+    }
+
     return 1; // return 0 will be exit the worker
 }
 
