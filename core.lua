@@ -4,7 +4,7 @@ memcached = require('memcached')
 redis = require('redis')
 date = require('date')
 loadtemplate = require('loadtemplate')
-httpclient = require('httpclient')
+httpclient = (require "httpclient").httprequest
 llmdb = require('llmdb-client')
 
 md5 = function(s) return crypto.evp.digest('md5', s) end
