@@ -188,14 +188,15 @@ int main(int argc, const char **argv)
                   "    local proxy = {} " \
                   "    local mt = { " \
                   "        __index = function (t1,k) " \
-                  "            local p = math.floor(os.time()/ttl) " \
+                  "            local p = math.floor(time()/ttl) " \
                   "            if t[(p-2)%3+1].__has then t[(p-2)%3+1] = {} end " \
                   "            return t[(p)%3+1][k] " \
                   "        end, " \
                   "        __newindex = function (t1,k,v) " \
-                  "            local p = math.floor(os.time()/ttl) " \
+                  "            local p = math.floor(time()/ttl) " \
                   "            t[p%3+1][k] = v " \
                   "            t[(p+1)%3+1][k] = v " \
+                  "            t[(p+1)%3+1].__has = 1 " \
                   "            t[p%3+1].__has = 1 " \
                   "        end " \
                   "    } " \

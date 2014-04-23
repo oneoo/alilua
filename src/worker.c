@@ -33,7 +33,7 @@ static int other_simple_jobs()
 
 #endif
 
-    if(++flush_logs_timer > 100){
+    if(++flush_logs_timer > 100) {
         flush_logs_timer = 0;
         sync_logs(LOGF_T);
         sync_logs(ACCESS_LOG);

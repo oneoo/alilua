@@ -203,6 +203,9 @@ void network_end_process(epdata_t *epd)
         }
     }
 
+    free(epd->iov[0].iov_base);
+    epd->iov[0].iov_base = NULL;
+
     for(i = 0; i < epd->iov_buf_count; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
@@ -314,7 +317,6 @@ void network_be_end(epdata_t *epd)     // for lua function die
             epd->response_header_length = len;
 
         } else {
-            //( ( char * ) ( epd->iov[0].iov_base ) ) [epd->response_header_length] = '\0';
             memcpy(temp_buf, epd->iov[0].iov_base, epd->response_header_length);
             len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
                     "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
@@ -354,22 +356,20 @@ void network_be_end(epdata_t *epd)     // for lua function die
             if(gzip_data == 1) {
                 network_raw_send(epd->fd, gzip_header, 10);
             }
-
-            free(epd->iov[0].iov_base);
-            epd->iov[0].iov_base = NULL;
-            int i = 0;
-
-            for(i = 0; i < epd->iov_buf_count; i++) {
-                epd->iov[i] = epd->iov[i + 1];
-                epd->iov[i + 1].iov_base = NULL;
-                epd->iov[i + 1].iov_len = 0;
-            }
         }
 
-        //epd->response_header_length = 0;
-        //printf("%d\n", epd->response_header_length);
-
         if(epd->response_content_length == 0) {
+            epd->response_content_length = len;
+
+            if(!epd->iov[0].iov_base) {
+                epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+                memcpy(epd->iov[0].iov_base, temp_buf, len);
+
+                if(epd->iov_buf_count < 1) {
+                    epd->iov_buf_count = 1;
+                }
+            }
+
             network_end_process(epd);
             serv_status.sending_counts--;
 
