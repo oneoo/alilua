@@ -456,18 +456,10 @@ int worker_process(epdata_t *epd, int thread_at)
         } while(p2);
     }
 
-    epd->vhost_root = get_vhost_root(epd->host);
-    i = strlen(epd->vhost_root);
+    epd->vhost_root = get_vhost_root(epd->host, &epd->vhost_root_len);
 
-    while(i > 0) {
-        if(epd->vhost_root[--i] == '/') {
-            epd->vhost_root_len = i;
-            break;
-        }
-    }
-
-    memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len);
-    sprintf(buf_4096 + epd->vhost_root_len, "/?.lua;%s/lua-libs/?.lua;", process_chdir);
+    memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len + 1);
+    sprintf(buf_4096 + epd->vhost_root_len + 1, "?.lua;%s/lua-libs/?.lua;", process_chdir);
 
     lua_pushstring(L, buf_4096);
     lua_getglobal(L, "package");

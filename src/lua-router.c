@@ -38,7 +38,7 @@ static int is_match(const char *rule, const char *uri)
 
         if(rule[i] == ':') {
             gk = 1;
-            v_p2[v_p_count2] = rule + (i + 1);
+            v_p2[v_p_count2] = (char *)rule + (i + 1);
 
         } else {
             if((rule[i] == '(' || rule[i] == '[' || rule[i] == '$' || rule[i] == '/')) {

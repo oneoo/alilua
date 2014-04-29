@@ -7,6 +7,8 @@ typedef struct vhost_conf_s {
     char host[256];
     int host_len;
     char root[1024];
+    int root_len;
+    int vhost_root_len;
     int mtype;
     struct vhost_conf_s *prev;
     struct vhost_conf_s *next;
@@ -14,6 +16,6 @@ typedef struct vhost_conf_s {
 
 int update_vhost_routes(char *f);
 vhost_conf_t *get_vhost_conf(char *host, int prefix);
-char *get_vhost_root(char *host);
+char *get_vhost_root(char *host, int *vhost_root_len);
 
 #endif

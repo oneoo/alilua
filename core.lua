@@ -169,8 +169,8 @@ function websocket_accept(loop, on)
 
     end
 end
-
-if _G.jit then debug.traceback=function() return '' end end
+--[[
+if not debug.traceback then debug.traceback=function() return '' end end
 function print_error(e,h)
     local err = debug.traceback()
     LOG(ERR, 'has error at '.. (e and e or 'unknow! \\')..err:gsub('\n', ' \\'))
@@ -183,6 +183,7 @@ function print_error(e,h)
 
     __end()
 end
+]]
 
 __yield = coroutine.yield
 _print = print
@@ -255,7 +256,7 @@ function dofile(f)
     if f1 then
         f1 = f1()
     else
-        error(e)
+        return nil, e..' ('..f..')'
     end
     return f1,e
 end
@@ -292,7 +293,12 @@ function router(u,t,p)
         f(p)
         return true
     elseif p then
-        dofile(p)
+        local r,e = dofile(p)
+        if e then
+            print_error(e)
+            return nil
+        end
+
         return true
     else
         return nil
@@ -321,9 +327,8 @@ while 1 do
 
     if e then
         print_error(e)
-    else
-        __end()
     end
+    __end()
 
     if on_shutdown then pcall(on_shutdown) end
 end

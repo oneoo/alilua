@@ -5,7 +5,9 @@
 #include "network.h"
 #include "lua-ext.h"
 
+static char temp_buf_1024[1024] = {0};
 static char temp_buf[8192];
+static char temp_buf2[8192];
 
 static epdata_t *get_epd(lua_State *L)
 {
@@ -172,6 +174,73 @@ int lua_echo(lua_State *L)
     _lua_echo(epd, L, nargs);
 
     return 0;
+}
+
+int lua_print_error(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    lua_Debug ar;
+    lua_getstack(L, 1, &ar);
+    lua_getinfo(L, "nSl", &ar);
+
+    if(!ar.source) {
+        return 0;
+    }
+
+    snprintf(temp_buf_1024, 1024, "%s:%d", ar.source + 1, ar.currentline);
+
+    lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+
+    if(!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return 1;
+    }
+
+    lua_getfield(L, -1, "traceback");
+
+    if(!lua_isfunction(L, -1)) {
+        lua_pop(L, 2);
+        return 1;
+    }
+
+    lua_pushvalue(L, 1);  /* pass error message */
+    lua_pushinteger(L, 2);  /* skip this function and traceback */
+    lua_call(L, 2, 1);  /* call debug.traceback */
+
+    size_t len = 0;
+    char *msg = (char *)lua_tolstring(L, -1, &len);
+    int i = 0;
+    memcpy(temp_buf2, "<h3>Error: ", 11);
+    int j = 11;
+    int is_first_line = 1;
+
+    for(i = 0; i < len; i++) {
+        temp_buf[i] = (msg[i] != '\n' ? msg[i] : ' ');
+
+        if(is_first_line && msg[i] == '\n') {
+            memcpy(temp_buf2 + j, "</h3>\n<pre>", 11);
+            j += 11;
+        }
+
+        temp_buf2[j++] = msg[i];
+    }
+
+    temp_buf[len] = '\0';
+    memcpy(temp_buf2 + j, "\n</pre>", 7);
+    j += 7;
+    temp_buf2[j] = '\0';
+
+    _LOGF(ERR, temp_buf_1024, "%s", temp_buf);
+    network_send(epd, temp_buf2, j);
+
+    return 1;
 }
 
 int lua_clear_header(lua_State *L)

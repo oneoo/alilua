@@ -91,17 +91,19 @@ int update_vhost_routes(char *f)
             if(host_len < 256) {
                 size_t root_len = 0;
                 char *root = (char *)lua_tolstring(L, -1, &root_len);
+                vhost_conf_t *vcf = NULL;
 
                 if(root_len < 1024) {
                     if(!in_link) {
                         LOGF(ALERT, "init vhost: %s => %s", host, root);
 
-                        vhost_conf_t *vcf = malloc(sizeof(vhost_conf_t));
+                        vcf = malloc(sizeof(vhost_conf_t));
                         memcpy(vcf->host, host, host_len);
                         vcf->host[host_len] = '\0';
                         vcf->host_len = host_len;
                         memcpy(vcf->root, root, root_len);
                         vcf->root[root_len] = '\0';
+
                         vcf->mtype = (host[0] == '*');
                         vcf->prev = NULL;
                         vcf->next = NULL;
@@ -135,7 +137,19 @@ int update_vhost_routes(char *f)
                     } else {
                         memcpy(in_link->root, root, root_len);
                         in_link->root[root_len] = '\0';
+                        vcf = in_link;
                     }
+
+                    int j = root_len;
+
+                    while(j > 0) {
+                        if(vcf->root[--j] == '/') {
+                            vcf->vhost_root_len = j;
+                            break;
+                        }
+                    }
+
+                    vcf->root_len = root_len;
                 }
             }
         }
@@ -177,7 +191,8 @@ vhost_conf_t *get_vhost_conf(char *host, int prefix)
 }
 
 static char *_default_index_file = NULL;
-char *get_vhost_root(char *host)
+static int _vhost_root_len = 0;
+char *get_vhost_root(char *host, int *vhost_root_len)
 {
     vhost_conf_t *vcf = get_vhost_conf(host, 1);
 
@@ -188,17 +203,32 @@ char *get_vhost_root(char *host)
             if(getarg("app")) {
                 char npath[1024] = {0};
                 realpath(getarg("app"), npath);
-                _default_index_file = malloc(strlen(npath));
+                _vhost_root_len = strlen(npath);
+                _default_index_file = malloc(_vhost_root_len);
+
                 sprintf(_default_index_file, "%s", npath);
-                return _default_index_file;
+
+            } else {
+
+                _vhost_root_len = strlen(process_chdir);
+                _default_index_file = malloc(_vhost_root_len + 50);
+                sprintf(_default_index_file, "%sroute.lua", process_chdir);
             }
 
-            _default_index_file = malloc(strlen(process_chdir) + 50);
-            sprintf(_default_index_file, "%s/route.lua", process_chdir);
+            while(_vhost_root_len > 0) {
+                if(_default_index_file[--_vhost_root_len] == '/') {
+                    break;
+                }
+            }
         }
+
+
+
+        *vhost_root_len = _vhost_root_len;
 
         return _default_index_file;
     }
 
+    *vhost_root_len = vcf->vhost_root_len;
     return vcf->root;
 }

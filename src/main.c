@@ -139,6 +139,7 @@ int main(int argc, const char **argv)
     }
 
     lua_register(_L, "echo", lua_echo);
+    lua_register(_L, "print_error", lua_print_error);
     lua_register(_L, "sendfile", lua_sendfile);
     lua_register(_L, "header", lua_header);
     lua_register(_L, "clear_header", lua_clear_header);

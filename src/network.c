@@ -146,9 +146,7 @@ void free_epd_request(epdata_t *epd) /// for keepalive
     }
 
     if(epd->headers) {
-        if(epd->headers != (unsigned char *)&epd->iov) {
-            free(epd->headers);
-        }
+        free(epd->headers);
 
         epd->headers = NULL;
     }
@@ -326,7 +324,7 @@ void network_be_end(epdata_t *epd)     // for lua function die
             epd->response_header_length = len;
         }
 
-        if(len < 4086 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
+        if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
             if(epd->iov[0].iov_base == NULL) {
                 epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
             }
@@ -424,28 +422,21 @@ int network_be_read(se_ptr_t *ptr)
         }
 
         if(epd->data_len + n >= epd->buf_size) {
-            if(epd->headers == (unsigned char *)&epd->iov) {
-                epd->headers = malloc(4096 * 2);
-                memcpy(epd->headers, &epd->iov, sizeof(epd->iov));
-                epd->buf_size = 4096 * 2;
+            char *_t = (char *) realloc(epd->headers, epd->buf_size + 4096);
+
+            if(_t != NULL) {
+                epd->headers = _t;
 
             } else {
-                char *_t = (char *) realloc(epd->headers, epd->buf_size + 4096);
-
-                if(_t != NULL) {
-                    epd->headers = _t;
-
-                } else {
-                    epd->iov[0].iov_base = NULL;
-                    epd->iov[0].iov_len = 0;
-                    epd->iov[1].iov_base = NULL;
-                    epd->iov[1].iov_len = 0;
-                    network_send_error(epd, 503, "memory error!");
-                    return 0;
-                }
-
-                epd->buf_size += 4096;
+                epd->iov[0].iov_base = NULL;
+                epd->iov[0].iov_len = 0;
+                epd->iov[1].iov_base = NULL;
+                epd->iov[1].iov_len = 0;
+                network_send_error(epd, 503, "memory error!");
+                return 0;
             }
+
+            epd->buf_size += 4096;
         }
 
         if(epd->status != STEP_READ) {
