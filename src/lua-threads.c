@@ -56,7 +56,7 @@ lua_State *new_lua_thread(lua_State *_L)
 
     if(lua_resume(L, 0) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
-            printf("1 Lua:error %s\n", lua_tostring(L, -1));
+            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
             lua_pop(L, 1);
         }
     }

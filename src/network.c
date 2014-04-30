@@ -239,7 +239,7 @@ void network_end_process(epdata_t *epd)
     }
 }
 
-void network_be_end(epdata_t *epd)     // for lua function die
+void network_be_end(epdata_t *epd) // for lua function die
 {
     if(epd->process_timeout == 1 && epd->keepalive != -1) {
         epd->process_timeout = 0;

@@ -328,9 +328,10 @@ while 1 do
     if e then
         print_error(e)
     end
-    __end()
 
     if on_shutdown then pcall(on_shutdown) end
+    
+    __end()
 end
 
 LOG(ERR,"------------------thread ended")
