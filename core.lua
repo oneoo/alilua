@@ -319,19 +319,23 @@ end
 ]]
 
 while 1 do
-    headers,_GET,_COOKIE,_POST,__root,index = __yield()
-    local r,e = loadfile(index)
-    if r and not e then
-        r,e = pcall(r)
-    end
+    local r,e = pcall(function()
+        while 1 do
+            headers,_GET,_COOKIE,_POST,__root,index = __yield()
+            local r,e = loadfile(index)
+            if r and not e then
+                r,e = pcall(r)
+            end
 
-    if e then
-        print_error(e)
-    end
+            if e then
+                print_error(e)
+            end
 
-    if on_shutdown then pcall(on_shutdown) end
-    
-    __end()
+            if on_shutdown then pcall(on_shutdown) end
+
+            __end()
+        end
+    end)
+
+    LOG(ERR, 'main', e)
 end
-
-LOG(ERR,"------------------thread ended")
