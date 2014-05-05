@@ -9,6 +9,7 @@ typedef struct lua_thread_link_s {
 
 static int lua_thread_count = 0;
 static lua_thread_link_t *lua_thread_head = NULL;
+static lua_thread_link_t *lua_thread_tail = NULL;
 
 lua_State *new_lua_thread(lua_State *_L)
 {
@@ -18,6 +19,12 @@ lua_State *new_lua_thread(lua_State *_L)
         L = lua_thread_head->L;
         void *l = lua_thread_head;
         lua_thread_head = lua_thread_head->next;
+
+        if(lua_thread_tail == l) {
+            lua_thread_head = NULL;
+            lua_thread_tail = NULL;
+        }
+
         free(l);
         return L;
     }
@@ -67,7 +74,21 @@ lua_State *new_lua_thread(lua_State *_L)
 void release_lua_thread(lua_State *L)
 {
     lua_thread_link_t *l = malloc(sizeof(lua_thread_link_t));
+
+    if(!l) {
+        LOGF(ERR, "malloc error!");
+        return;
+    }
+
     l->L = L;
-    l->next = lua_thread_head;
-    lua_thread_head = l;
+    l->next = NULL;
+
+    if(lua_thread_tail) {
+        lua_thread_tail->next = l;
+
+    } else {
+        lua_thread_head = l;
+    }
+
+    lua_thread_tail = l;
 }
