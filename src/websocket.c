@@ -33,8 +33,19 @@ int websocket_be_read(se_ptr_t *ptr)
         if(epd->headers == NULL) {
             epd->status = STEP_FINISH;
             //network_send_error ( epd, 503, "memory error!" );
-            close_client(epd);
-            serv_status.reading_counts--;
+            //close_client(epd);
+            se_delete(epd->se_ptr);
+            epd->se_ptr = NULL;
+            delete_timeout(epd->timeout_ptr);
+            epd->timeout_ptr = NULL;
+
+            if(epd->fd > -1) {
+                serv_status.active_counts--;
+                close(epd->fd);
+                epd->fd = -1;
+            }
+
+            //serv_status.reading_counts--;
             return 0;
         }
 
@@ -47,7 +58,18 @@ int websocket_be_read(se_ptr_t *ptr)
             epd->headers = _t;
 
         } else {
-            close_client(epd);
+            //close_client(epd);
+            se_delete(epd->se_ptr);
+            epd->se_ptr = NULL;
+            delete_timeout(epd->timeout_ptr);
+            epd->timeout_ptr = NULL;
+
+            if(epd->fd > -1) {
+                serv_status.active_counts--;
+                close(epd->fd);
+                epd->fd = -1;
+            }
+
             return 0;
         }
 
@@ -57,8 +79,19 @@ int websocket_be_read(se_ptr_t *ptr)
     while((n = recv(epd->fd, epd->headers + epd->data_len,
                     epd->buf_size - epd->data_len, 0)) >= 0) {
         if(n == 0) {
-            close_client(epd);
-            epd = NULL;
+            //close_client(epd);
+            //epd = NULL;
+            se_delete(epd->se_ptr);
+            epd->se_ptr = NULL;
+            delete_timeout(epd->timeout_ptr);
+            epd->timeout_ptr = NULL;
+
+            if(epd->fd > -1) {
+                serv_status.active_counts--;
+                close(epd->fd);
+                epd->fd = -1;
+            }
+
             break;
         }
 
@@ -70,8 +103,19 @@ int websocket_be_read(se_ptr_t *ptr)
 
             } else {
                 //network_send_error ( epd, 503, "buf error!" );
-                close_client(epd);
-                epd = NULL;
+                //close_client(epd);
+                //epd = NULL;
+                se_delete(epd->se_ptr);
+                epd->se_ptr = NULL;
+                delete_timeout(epd->timeout_ptr);
+                epd->timeout_ptr = NULL;
+
+                if(epd->fd > -1) {
+                    serv_status.active_counts--;
+                    close(epd->fd);
+                    epd->fd = -1;
+                }
+
                 break;
             }
 
@@ -206,8 +250,19 @@ int websocket_be_write(se_ptr_t *ptr)
                 return 0;
 
             } else {
-                close_client(epd);
-                epd = NULL;
+                //close_client(epd);
+                //epd = NULL;
+                se_delete(epd->se_ptr);
+                epd->se_ptr = NULL;
+                delete_timeout(epd->timeout_ptr);
+                epd->timeout_ptr = NULL;
+
+                if(epd->fd > -1) {
+                    serv_status.active_counts--;
+                    close(epd->fd);
+                    epd->fd = -1;
+                }
+
                 lua_State *L = (lua_State *) epd->L;
                 lua_pushnil(L);
                 lua_pushstring(L, "send error!");
@@ -394,6 +449,24 @@ int lua_f_check_websocket_close(lua_State *L)
     }
 
     if(epd->websocket->ended) {
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    if(check_process_for_exit()) {
+        ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
+
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        delete_timeout(epd->timeout_ptr);
+        epd->timeout_ptr = NULL;
+
+        if(epd->fd > -1) {
+            serv_status.active_counts--;
+            close(epd->fd);
+            epd->fd = -1;
+        }
+
         lua_pushboolean(L, 1);
         return 1;
     }

@@ -229,7 +229,7 @@ void network_end_process(epdata_t *epd)
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
 
-    if(epd->keepalive == 1) {
+    if(epd->keepalive == 1 && !check_process_for_exit()) {
         update_timeout(epd->timeout_ptr, STEP_WAIT_TIMEOUT);
         free_epd_request(epd);
 
@@ -254,8 +254,7 @@ void network_be_end(epdata_t *epd) // for lua function die
     epd->status = STEP_SEND;
     serv_status.sending_counts++;
 
-    if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL
-       && epd->response_sendfile_fd == -1) {
+    if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL && epd->response_sendfile_fd == -1) {
         serv_status.sending_counts--;
         network_send_error(epd, 417, "");
 
@@ -316,11 +315,26 @@ void network_be_end(epdata_t *epd) // for lua function die
 
         } else {
             memcpy(temp_buf, epd->iov[0].iov_base, epd->response_header_length);
-            len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
-                    "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
-                    (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
-                    (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
-                    epd->response_content_length + (gzip_data == 1 ? 10 : 0));
+            char *p = NULL;
+
+            if((p = stristr(temp_buf, "Connection:", epd->response_header_length))) {
+                if(stristr(p, "close", epd->response_header_length - (p - temp_buf))) {
+                    epd->keepalive = 0;
+                }
+
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname, now_gmt,
+                        (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
+                        epd->response_content_length + (gzip_data == 1 ? 10 : 0));
+
+            } else {
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
+                        (epd->keepalive == 1 ? (epd->websocket ? "Upgrade" : "keep-alive") : "close"), now_gmt,
+                            (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
+                            epd->response_content_length + (gzip_data == 1 ? 10 : 0));
+            }
+
             epd->response_header_length = len;
         }
 
