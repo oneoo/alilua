@@ -12,10 +12,22 @@ extern int lua_routed;
 
 extern logf_t *ACCESS_LOG;
 
+static int exited = 0;
 static void on_exit_handler()
 {
+    if(exited) {
+        return;
+    }
+
+    exited = 1;
     sync_logs(ACCESS_LOG);
     LOGF(ALERT, "worker %d exited", worker_n);
+
+    if(getarg("gcore") && !check_process_for_exit()) {
+        char cmd[50] = {0};
+        sprintf(cmd, "gcore %u", getpid());
+        system(cmd);
+    }
 }
 
 static int dump_smp_link_time = 0;
@@ -535,13 +547,22 @@ void worker_main(int _worker_n)
     worker_n = _worker_n;
     attach_on_exit(on_exit_handler);
 
-    if(is_daemon == 1) {
+    if(is_daemon == 1 && !getarg("gcore")) {
         set_process_user(/*user*/ NULL, /*group*/ NULL);
     }
 
     init_mime_types();
     shm_serv_status = _shm_serv_status->p;
     memcpy(shm_serv_status, &serv_status, sizeof(serv_status_t));
+
+    lua_pushstring(_L, "__main");
+
+    if(luaL_loadfile(_L, "core.lua")) {
+        LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
+        exit(1);
+    }
+
+    lua_rawset(_L, LUA_GLOBALSINDEX);
 
     /// 进入 loop 处理循环
     loop_fd = se_create(4096);

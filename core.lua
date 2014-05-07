@@ -1,5 +1,5 @@
 mysql = require('mysql')
-cjson = require('cjson')
+cjson = require('cjson.safe')
 memcached = require('memcached')
 redis = require('redis')
 date = require('date')
@@ -328,6 +328,8 @@ while 1 do
             end
 
             if e then
+                clear_header()
+                header('HTTP/1.1 503 Server Error')
                 print_error(e)
             end
 

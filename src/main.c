@@ -174,8 +174,6 @@ int main(int argc, const char **argv)
             "package.path = '%s/lua-libs/?.lua;' .. package.path package.cpath = '%s/lua-libs/?.so;' .. package.cpath", cwd, cwd);
     luaL_dostring(_L, tbuf_4096);
 
-    lua_pushstring(_L, "__main");
-
     luaL_dostring(_L, ""
                   "function cacheTable(ttl) " \
                   "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
@@ -208,13 +206,6 @@ int main(int argc, const char **argv)
                   "CodeCache = cacheTable(CODE_CACHE_TTL) " \
                   "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)"
                  );
-
-    if(luaL_loadfile(_L, "core.lua")) {
-        LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
-        exit(1);
-    }
-
-    lua_rawset(_L, LUA_GLOBALSINDEX);
 
     if(getarg("accesslog")) {
         ACCESS_LOG = open_log(getarg("accesslog"), 40960);
