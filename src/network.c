@@ -330,9 +330,9 @@ void network_be_end(epdata_t *epd) // for lua function die
             } else {
                 len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
                         "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
-                        (epd->keepalive == 1 ? (epd->websocket ? "Upgrade" : "keep-alive") : "close"), now_gmt,
-                            (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
-                            epd->response_content_length + (gzip_data == 1 ? 10 : 0));
+                        (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
+                        (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
+                        epd->response_content_length + (gzip_data == 1 ? 10 : 0));
             }
 
             epd->response_header_length = len;
@@ -341,13 +341,13 @@ void network_be_end(epdata_t *epd) // for lua function die
         if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
             if(epd->iov[0].iov_base == NULL) {
                 epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
-            }
 
-            if(epd->iov[0].iov_base == NULL) {
-                epd->keepalive = 0;
-                network_end_process(epd);
-                serv_status.sending_counts--;
-                return;
+                if(epd->iov[0].iov_base == NULL) {
+                    epd->keepalive = 0;
+                    network_end_process(epd);
+                    serv_status.sending_counts--;
+                    return;
+                }
             }
 
             memcpy(epd->iov[0].iov_base, temp_buf, len);
@@ -615,7 +615,7 @@ int network_be_read(se_ptr_t *ptr)
             }
             /// end.
 
-            se_be_pri(epd->se_ptr, NULL);    // be wait
+            se_be_pri(epd->se_ptr, NULL); // be wait
 
             if(epd->status == STEP_READ) {
                 serv_status.reading_counts--;
