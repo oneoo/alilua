@@ -25,7 +25,7 @@ static void on_exit_handler()
 
     if(getarg("gcore") && !check_process_for_exit()) {
         char cmd[50] = {0};
-        sprintf(cmd, "gcore %u", getpid());
+        sprintf(cmd, "gcore -o dump %u", getpid());
         system(cmd);
     }
 }
@@ -60,11 +60,6 @@ void free_epd(epdata_t *epd)
         return;
     }
 
-    if(epd->L) {
-        release_lua_thread(epd->L);
-        epd->L = NULL;
-    }
-
     if(epd->headers) {
         if(epd->headers != (unsigned char *)&epd->iov) {
             free(epd->headers);
@@ -85,6 +80,15 @@ void close_client(epdata_t *epd)
 {
     if(!epd) {
         return;
+    }
+
+    if(epd->L) {
+        if(epd->status == STEP_PROCESS) {
+            LOGF(ERR, "at working!!!");
+        }
+
+        release_lua_thread(epd->L);
+        epd->L = NULL;
     }
 
     if(epd->status == STEP_READ) {
@@ -118,6 +122,12 @@ static void timeout_handle(void *ptr)
         serv_status.sending_counts--;
     }
 
+    if(epd->status == STEP_PROCESS && epd->L) {
+        LOGF(ERR, "process timeout");
+        update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
+        return;
+    }
+
     epd->status = STEP_WAIT;
 
     close_client(epd);
@@ -129,7 +139,7 @@ int worker_process(epdata_t *epd, int thread_at)
     working_at_fd = epd->fd;
     //network_send_error(epd, 503, "Lua Error: main function not found !!!");return 0;
     //network_send(epd, "aaa", 3);network_be_end(epd);return 0;
-    add_io_counts();
+
     lua_State *L = epd->L;
 
     if(!L) {
@@ -555,13 +565,15 @@ void worker_main(int _worker_n)
     shm_serv_status = _shm_serv_status->p;
     memcpy(shm_serv_status, &serv_status, sizeof(serv_status_t));
 
-    lua_pushstring(_L, "__main");
-
     if(luaL_loadfile(_L, "core.lua")) {
         LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
         exit(1);
     }
 
+    int mrkey = luaL_ref(_L, LUA_REGISTRYINDEX);
+
+    lua_pushstring(_L, "__main");
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, mrkey);
     lua_rawset(_L, LUA_GLOBALSINDEX);
 
     /// 进入 loop 处理循环

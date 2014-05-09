@@ -40,7 +40,6 @@ int lua_check_timeout(lua_State *L)
 
     if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
         epd->keepalive = 0;
-        //network_be_end(epd);
         lua_pushstring(L, "Process Time Out!");
         lua_error(L);    /// stop lua script
     }
@@ -94,6 +93,12 @@ int lua_header(lua_State *L)
 
             lua_pop(L, 1);
         }
+    }
+
+    if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
+        epd->keepalive = 0;
+        lua_pushstring(L, "Process Time Out!");
+        lua_error(L);    /// stop lua script
     }
 
     return 0;
@@ -172,6 +177,12 @@ int lua_echo(lua_State *L)
     }
 
     _lua_echo(epd, L, nargs);
+
+    if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
+        epd->keepalive = 0;
+        lua_pushstring(L, "Process Time Out!");
+        lua_error(L);    /// stop lua script
+    }
 
     return 0;
 }
@@ -385,9 +396,11 @@ int lua_sendfile(lua_State *L)
 
     //free(full_fname);
 
-    network_be_end(epd);
     lua_pushnil(L);
     lua_error(L); /// stop lua script
+
+    network_be_end(epd);
+
     return 0;
 }
 

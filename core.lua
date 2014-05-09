@@ -321,7 +321,7 @@ end
 while 1 do
     local r,e = pcall(function()
         while 1 do
-            headers,_GET,_COOKIE,_POST,__root,index = __yield()
+            headers,_GET,_COOKIE,_POST,__root,index = co_get_request()
             local r,e = loadfile(index)
             if r and not e then
                 r,e = pcall(r)

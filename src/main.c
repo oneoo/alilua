@@ -138,6 +138,7 @@ int main(int argc, const char **argv)
         lua_setglobal(_L, "CODE_CACHE_TTL");
     }
 
+    lua_register(_L, "co_get_request", lua_co_get_request);
     lua_register(_L, "echo", lua_echo);
     lua_register(_L, "print_error", lua_print_error);
     lua_register(_L, "sendfile", lua_sendfile);
@@ -175,6 +176,7 @@ int main(int argc, const char **argv)
     luaL_dostring(_L, tbuf_4096);
 
     luaL_dostring(_L, ""
+                  "math_floor = math.floor " \
                   "function cacheTable(ttl) " \
                   "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
                   "        local t = {} " \
@@ -187,12 +189,12 @@ int main(int argc, const char **argv)
                   "    local proxy = {} " \
                   "    local mt = { " \
                   "        __index = function (t1,k) " \
-                  "            local p = math.floor(time()/ttl) " \
+                  "            local p = math_floor(time()/ttl) " \
                   "            if t[(p-2)%3+1].__has then t[(p-2)%3+1] = {} end " \
                   "            return t[(p)%3+1][k] " \
                   "        end, " \
                   "        __newindex = function (t1,k,v) " \
-                  "            local p = math.floor(time()/ttl) " \
+                  "            local p = math_floor(time()/ttl) " \
                   "            t[p%3+1][k] = v " \
                   "            t[(p+1)%3+1][k] = v " \
                   "            t[(p+1)%3+1].__has = 1 " \
@@ -204,7 +206,8 @@ int main(int argc, const char **argv)
                   "end " \
                   "if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end " \
                   "CodeCache = cacheTable(CODE_CACHE_TTL) " \
-                  "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)"
+                  "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)" \
+                  "cothreads = {} "
                  );
 
     if(getarg("accesslog")) {

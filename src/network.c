@@ -317,7 +317,7 @@ void network_be_end(epdata_t *epd) // for lua function die
             memcpy(temp_buf, epd->iov[0].iov_base, epd->response_header_length);
             char *p = NULL;
 
-            if((p = stristr(temp_buf, "Connection:", epd->response_header_length))) {
+            if((p = (char *)stristr(temp_buf, "Connection:", epd->response_header_length))) {
                 if(stristr(p, "close", epd->response_header_length - (p - temp_buf))) {
                     epd->keepalive = 0;
                 }

@@ -11,6 +11,28 @@ static int lua_thread_count = 0;
 static lua_thread_link_t *lua_thread_head = NULL;
 static lua_thread_link_t *lua_thread_tail = NULL;
 
+void release_lua_thread(lua_State *L)
+{
+    lua_thread_link_t *l = malloc(sizeof(lua_thread_link_t));
+
+    if(!l) {
+        LOGF(ERR, "malloc error!");
+        return;
+    }
+
+    l->L = L;
+    l->next = NULL;
+
+    if(lua_thread_tail) {
+        lua_thread_tail->next = l;
+
+    } else {
+        lua_thread_head = l;
+    }
+
+    lua_thread_tail = l;
+}
+
 lua_State *new_lua_thread(lua_State *_L)
 {
     lua_State *L = NULL;
@@ -32,10 +54,26 @@ lua_State *new_lua_thread(lua_State *_L)
     if(lua_thread_count >= MAX_LUA_THREAD_COUNT) {
         LOGF(ERR, "Lua thread pool full!");
         return NULL;
-    }
+
+    }/* else if(lua_thread_count == 0) {
+        lua_thread_count = 1;
+        int i = 1;
+
+        for(i = 1; i < MAX_LUA_THREAD_COUNT; i++) {
+            L = new_lua_thread(_L);
+            release_lua_thread(L);
+            L = NULL;
+        }
+
+        lua_thread_count -= 1;
+    }*/
 
     lua_thread_count++;
+    ///lua_getglobal(_L, "cothreads");
     L = lua_newthread(_L);
+    ///lua_rawseti(_L, -2, lua_thread_count);
+    ///lua_pop(_L, 1);
+
     int m_refkey = luaL_ref(_L, LUA_REGISTRYINDEX);
     // when you want to kill it.
     //lua_unref(m_state, m_refkey);
@@ -59,7 +97,7 @@ lua_State *new_lua_thread(lua_State *_L)
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfenv(L, -2);
 
-    lua_settop(L, -1);
+    lua_settop(L, 1);
 
     if(lua_resume(L, 0) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
@@ -71,24 +109,7 @@ lua_State *new_lua_thread(lua_State *_L)
     return L;
 }
 
-void release_lua_thread(lua_State *L)
+int lua_co_get_request(lua_State *L)
 {
-    lua_thread_link_t *l = malloc(sizeof(lua_thread_link_t));
-
-    if(!l) {
-        LOGF(ERR, "malloc error!");
-        return;
-    }
-
-    l->L = L;
-    l->next = NULL;
-
-    if(lua_thread_tail) {
-        lua_thread_tail->next = l;
-
-    } else {
-        lua_thread_head = l;
-    }
-
-    lua_thread_tail = l;
+    return lua_yield(L, 0);
 }
