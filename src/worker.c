@@ -156,6 +156,8 @@ int worker_process(epdata_t *epd, int thread_at)
         L = epd->L;
     }
 
+    lua_getglobal(L, "process");
+
     update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
 
     int init_tables = 0;
@@ -504,6 +506,7 @@ int worker_process(epdata_t *epd, int thread_at)
     if(lua_resume(L, 6) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
             LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
+            network_send_error(epd, 503, lua_tostring(L, -1));
             lua_pop(L, 1);
         }
     }
@@ -563,7 +566,7 @@ void worker_main(int _worker_n)
 
     init_mime_types();
     shm_serv_status = _shm_serv_status->p;
-    memcpy(shm_serv_status, &serv_status, sizeof(serv_status_t));
+    //memcpy(shm_serv_status, &serv_status, sizeof(serv_status_t));
 
     if(luaL_loadfile(_L, "core.lua")) {
         LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
@@ -575,6 +578,8 @@ void worker_main(int _worker_n)
     lua_pushstring(_L, "__main");
     lua_rawgeti(_L, LUA_REGISTRYINDEX, mrkey);
     lua_rawset(_L, LUA_GLOBALSINDEX);
+
+    init_lua_threads(_L, 1000);
 
     /// 进入 loop 处理循环
     loop_fd = se_create(4096);

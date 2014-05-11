@@ -94,6 +94,7 @@ void network_send_status(epdata_t *epd);
 static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
 int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count);
 
+void init_lua_threads(lua_State *_L, int count);
 lua_State *new_lua_thread(lua_State *_L);
 void release_lua_thread(lua_State *L);
 int lua_co_get_request(lua_State *L);

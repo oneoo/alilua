@@ -318,26 +318,25 @@ function require(n)
 end
 ]]
 
-while 1 do
-    local r,e = pcall(function()
-        while 1 do
-            headers,_GET,_COOKIE,_POST,__root,index = co_get_request()
-            local r,e = loadfile(index)
-            if r and not e then
-                r,e = pcall(r)
-            end
+function process(_headers, __GET, __COOKIE, __POST, _root, index)
+    headers = _headers
+    _GET = __GET
+    _COOKIE = __COOKIE
+    _POST = __POST
+    __root = _root
+    local r,e = loadfile(index)
+    if r and not e then
+        r,e = pcall(r)
+    end
 
-            if e then
-                clear_header()
-                header('HTTP/1.1 503 Server Error')
-                print_error(e)
-            end
+    if e then
+        clear_header()
+        header('HTTP/1.1 503 Server Error')
+        print_error(e)
+    end
 
-            if on_shutdown then pcall(on_shutdown) end
+    if on_shutdown then pcall(on_shutdown) end
 
-            __end()
-        end
-    end)
-
-    LOG(ERR, 'main', e)
+    __end()
 end
+

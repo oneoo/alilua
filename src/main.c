@@ -219,6 +219,7 @@ int main(int argc, const char **argv)
     }
 
     _shm_serv_status = shm_malloc(sizeof(serv_status_t));
+    bzero(_shm_serv_status->p, sizeof(serv_status_t));
 
     attach_on_exit(on_master_exit_handler);
     return merry_start(argc, argv, help, master_main, on_master_exit_handler, worker_main, 0);

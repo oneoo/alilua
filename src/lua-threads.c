@@ -55,18 +55,7 @@ lua_State *new_lua_thread(lua_State *_L)
         LOGF(ERR, "Lua thread pool full!");
         return NULL;
 
-    }/* else if(lua_thread_count == 0) {
-        lua_thread_count = 1;
-        int i = 1;
-
-        for(i = 1; i < MAX_LUA_THREAD_COUNT; i++) {
-            L = new_lua_thread(_L);
-            release_lua_thread(L);
-            L = NULL;
-        }
-
-        lua_thread_count -= 1;
-    }*/
+    }
 
     lua_thread_count++;
     ///lua_getglobal(_L, "cothreads");
@@ -77,16 +66,11 @@ lua_State *new_lua_thread(lua_State *_L)
     int m_refkey = luaL_ref(_L, LUA_REGISTRYINDEX);
     // when you want to kill it.
     //lua_unref(m_state, m_refkey);
-
     lua_newtable(L);
     lua_pushvalue(L, -1);
     lua_setfield(L, -2, "_G");
 
     lua_newtable(L);
-    /*
-    lua_getglobal(L, "__newindex_handle");
-    lua_setfield(L, -2, "__newindex");
-    */
     lua_pushliteral(L, "__index");
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_settable(L, -3);
@@ -96,8 +80,6 @@ lua_State *new_lua_thread(lua_State *_L)
     lua_getglobal(L, "__main");
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfenv(L, -2);
-
-    lua_settop(L, 1);
 
     if(lua_resume(L, 0) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
@@ -111,5 +93,24 @@ lua_State *new_lua_thread(lua_State *_L)
 
 int lua_co_get_request(lua_State *L)
 {
-    return lua_yield(L, 0);
+    return lua_yield(L, lua_gettop(L));
+}
+
+void init_lua_threads(lua_State *_L, int count)
+{
+    int i = 0;
+    void *LS = malloc(sizeof(void *)*count);
+
+    for(i = 0; i < count; i++) {
+        void **L = LS + (i * sizeof(void *));
+        *L = new_lua_thread(_L);
+    }
+
+    for(i = 0; i < count; i++) {
+        void **L = LS + (i * sizeof(void *));
+
+        if(*L) {
+            release_lua_thread(*L);
+        }
+    }
 }
