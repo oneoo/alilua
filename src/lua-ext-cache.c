@@ -94,28 +94,27 @@ int lua_f_cache_get(lua_State *L)
     int flag = 0;
 
     if(yac_storage_find(key, klen, &value, &vlen, &flag, (int *) 0, now)) {
-        //if(value){
-        int t = 1;
+        if(value) {
+            int t = 1;
 
-        if(value[0] == '4') {
-            t = 4;
+            if(value[0] == '4') {
+                t = 4;
 
-        } else if(value[0] == '3') {
-            t = 3;
+            } else if(value[0] == '3') {
+                t = 3;
 
-        } else if(value[0] == '2') {
-            t = 2;
+            } else if(value[0] == '2') {
+                t = 2;
+            }
+
+            lua_pushnumber(L, t);    /// push type
+            lua_pushlstring(L, value + 1, vlen - 1);    /// push content
+            yac_free(value);
+            return 2;
         }
-
-        lua_pushnumber(L, t);    /// push type
-        lua_pushlstring(L, value + 1, vlen - 1);    /// push content
-        free(value);
-        return 2;
-
-    } else {
-        lua_pushnil(L);
     }
 
+    lua_pushnil(L);
     return 1;
 }
 

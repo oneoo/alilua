@@ -622,6 +622,10 @@ const char * yac_storage_shared_memory_name(void) /* {{{ */ {
 }
 /* }}} */
 
+void yac_free(void *p) /* {{{ */ {
+	USER_FREE(p);
+}
+
 /*
  * Local variables:
  * tab-width: 4

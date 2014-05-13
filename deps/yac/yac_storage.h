@@ -122,6 +122,8 @@ yac_item_list * yac_storage_dump(unsigned int limit);
 void yac_storage_free_list(yac_item_list *list);
 #define yac_storage_exists(ht, key, len)  yac_storage_find(ht, key, len, NULL)
 
+void yac_free(void *p);
+
 #endif	/* YAC_STORAGE_H */
 
 /*
