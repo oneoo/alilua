@@ -4,6 +4,10 @@ A epoll/kqueue based web server, inculded lua/coevent support (support Linux/Mac
 
 *WebSocket supported
 
+###Version
+
+v0.41 stable https://github.com/oneoo/alilua/archive/v0.41.zip
+
 Install
 --------
 
@@ -19,21 +23,21 @@ sudo yum install openssl-devel
 
 ###Install LuaJit
 
-** aLiLua v0.4 included luajit-v2.1, no 3dpart required **
+**aLiLua v0.4 included luajit-v2.1, no 3dpart required**
 
-~~ wget http://luajit.org/download/LuaJIT-2.0.2.tar.gz ~~
+~~wget http://luajit.org/download/LuaJIT-2.0.2.tar.gz~~
 
-tar zxf LuaJIT-2.0.2.tar.gz
+~~tar zxf LuaJIT-2.0.2.tar.gz~~
 
-cd LuaJIT-2.0.2
+~~cd LuaJIT-2.0.2~~
 
-~~ make ~~
+~~make~~
 
-~~ sudo make install ~~
+~~sudo make install~~
 
-make clean
+~~make clean~~
 
-sudo ldconfig
+~~sudo ldconfig~~
 
 ###Install aLiLua
 
