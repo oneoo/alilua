@@ -531,16 +531,18 @@ function _M.connect(self, opts)
 
     local pool = opts.pool
 
+    local password = opts.password or ""
+
     local host = opts.host
     if host then
         local port = opts.port or 3306
         if not pool then
-            pool = user .. ":" .. database .. ":" .. host .. ":" .. port
+            pool = user .. ':' .. password .. ":" .. database .. ":" .. host .. ":" .. port
         end
         if ngx then
             ok, err = sock:connect(host, port, { pool = pool })
         else
-            ok, err = sock:connect(host, port, opts.pool_size, user..'@'..host..':'..port..'/'..database)
+            ok, err = sock:connect(host, port, opts.pool_size, user..':'..password..'@'..host..':'..port..'/'..database)
         end
 
     else
@@ -550,13 +552,17 @@ function _M.connect(self, opts)
         end
 
         if not pool then
-            pool = user .. ":" .. database .. ":" .. path
+            pool = user .. ':' .. password .. ":" .. database .. ":" .. path
         end
 
         if ngx then
             ok, err = sock:connect("unix:" .. path, { pool = pool })
         else
-            ok, err = sock:connect(path, opts.pool_size, user..'@'..path..'/'..database)
+            if ngx then
+                ok, err = sock:connect(path, opts.pool_size, user..'@'..path..'/'..database)
+            else
+                ok, err = sock:connect(path, 0, opts.pool_size, user..':'..password..'@'..host..':'..port..'/'..database)
+            end
         end
     end
 
