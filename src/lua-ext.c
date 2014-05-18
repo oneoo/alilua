@@ -95,14 +95,9 @@ int lua_header(lua_State *L)
         }
     }
 
-    if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
-        epd->keepalive = 0;
-        lua_pushstring(L, "Process Time Out!");
-        lua_error(L);    /// stop lua script
-    }
-
     return 0;
 }
+
 static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)
 {
     size_t len = 0;

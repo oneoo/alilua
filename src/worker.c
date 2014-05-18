@@ -123,7 +123,7 @@ static void timeout_handle(void *ptr)
     }
 
     if(epd->status == STEP_PROCESS && epd->L) {
-        LOGF(ERR, "process timeout");
+        LOGF(ERR, "Process Timeout(continue)");
         update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
         return;
     }
@@ -158,7 +158,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_getglobal(L, "process");
 
-    update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT);
+    update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT+100);
 
     int init_tables = 0;
     char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL;

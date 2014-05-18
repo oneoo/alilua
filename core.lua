@@ -332,6 +332,7 @@ function process(_headers, __GET, __COOKIE, __POST, _root, index)
     if e then
         clear_header()
         header('HTTP/1.1 503 Server Error')
+        header('Content-Type: text/html; charset=UTF-8')
         print_error(e)
     end
 
