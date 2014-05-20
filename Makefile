@@ -42,6 +42,7 @@ main.o:
 	[ -f luajit/src/libluajit.a ] || (cd luajit && make)
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/common/*.c $(DEBUG) $(INCLUDES);
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/se/*.c $(DEBUG) $(INCLUDES);
+	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/se/libeio/*.c $(DEBUG) $(INCLUDES);
 	cd objs/merry && $(CC) -fPIC -c ../../coevent/merry/*.c $(DEBUG) $(INCLUDES);
 	cd objs && $(CC) -fPIC -c ../coevent/src/*.c $(DEBUG) $(INCLUDES);
 	cd objs && $(CC) -fPIC -c ../src/*.c $(DEBUG) $(INCLUDES);
