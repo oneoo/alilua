@@ -19,6 +19,13 @@ static void on_exit_handler()
         return;
     }
 
+    now += 10;
+    serv_status.waiting_counts = 0;
+    serv_status.reading_counts = 0;
+    serv_status.sending_counts = 0;
+    serv_status.active_counts = 0;
+    sync_serv_status();
+
     exited = 1;
     sync_logs(ACCESS_LOG);
     LOGF(ALERT, "worker %d exited", worker_n);
