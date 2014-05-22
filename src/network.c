@@ -181,14 +181,13 @@ void free_epd_request(epdata_t *epd) /// for keepalive
     }
 }
 
-void network_end_process(epdata_t *epd)
+void network_end_process(epdata_t *epd, int response_code)
 {
     epd->status = STEP_WAIT;
 
     int i = 0;
-    int response_code = 0;
 
-    if(epd->iov[0].iov_base) {
+    if(!response_code && epd->iov[0].iov_base) {
         char *hl = strtok(epd->iov[0].iov_base, "\n");
 
         if(hl) {
@@ -204,7 +203,7 @@ void network_end_process(epdata_t *epd)
     free(epd->iov[0].iov_base);
     epd->iov[0].iov_base = NULL;
 
-    for(i = 0; i < epd->iov_buf_count; i++) {
+    for(i = 1; i < epd->iov_buf_count; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
         epd->iov[i].iov_len = 0;
@@ -214,14 +213,99 @@ void network_end_process(epdata_t *epd)
 
     long ttime = longtime();
 
+    if(!epd->uri && epd->headers) {
+        epd->headers[epd->header_len ? epd->header_len : epd->data_len] = '\0';
+        char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL;
+        pt1 = epd->headers;
+        i = 0;
+
+        while(t1 = strtok_r(pt1, "\n", &pt1)) {
+            if(++i == 1) { /// first line
+                t2 = strtok_r(t1, " ", &t1);
+                t3 = strtok_r(t1, " ", &t1);
+                epd->http_ver = strtok_r(t1, " ", &t1);
+
+                if(!epd->http_ver) {
+                    break;
+                }
+
+                int len = strlen(epd->http_ver);
+
+                if(epd->http_ver[len - 1] == 13) { // CR == 13
+                    epd->http_ver[len - 1] = '\0';
+                }
+
+                if(t2 && t3) {
+                    for(t1 = t2 ; *t1 ; *t1 = toupper(*t1), t1++);
+
+                    epd->method = t2;
+                    t1 = strtok_r(t3, "?", &t3);
+                    t2 = strtok_r(t3, "?", &t3);
+                    epd->uri = t1;
+
+                    if(t2) {
+                        epd->query = (t2 - 1);
+                        epd->query[0] = '?';
+                    }
+                }
+
+                continue;
+            }
+
+            t2 = strtok_r(t1, ":", &t1);
+
+            if(t2) {
+                for(t3 = t2; *t3; ++t3) {
+                    *t3 = *t3 >= 'A' && *t3 <= 'Z' ? *t3 | 0x60 : *t3;
+                }
+
+                t3 = t2 + strlen(t2) + 1; //strtok_r ( t1, ":", &t1 )
+
+                if(t3) {
+                    int len = strlen(t3);
+
+                    if(t3[len - 1] == 13) { /// 13 == CR
+                        t3[len - 1] = '\0';
+                        len -= 1;
+                    }
+
+                    if(len < 1) {
+                        break;
+                    }
+
+                    if(t2[0] == 'h' && epd->host == NULL && strcmp(t2, "host") == 0) {
+                        char *_t = strstr(t3, ":");
+
+                        if(_t) {
+                            _t[0] = '\0';
+                        }
+
+                        epd->host = t3 + (t3[0] == ' ' ? 1 : 0);
+
+                    } else if(!epd->user_agent && t2[1] == 's' && strcmp(t2, "user-agent") == 0) {
+                        epd->user_agent = t3 + (t3[0] == ' ' ? 1 : 0);
+
+                    } else if(!epd->referer && t2[1] == 'e' && strcmp(t2, "referer") == 0) {
+                        epd->referer = t3 + (t3[0] == ' ' ? 1 : 0);
+
+                    } else if(!epd->if_modified_since && t2[1] == 'f' && strcmp(t2, "if-modified-since") == 0) {
+                        epd->if_modified_since = t3 + (t3[0] == ' ' ? 1 : 0);
+                    }
+                }
+            }
+        }
+    }
+
     if(ACCESS_LOG) log_writef(ACCESS_LOG,
-                                  "%s - - [%s] %s \"%s %s %s\" %d %d %d \"%s\" \"%s\" %.3f\n",
+                                  "%s - - [%s] %s \"%s %s %s\" %d %d %d %d %d \"%s\" \"%s\" %.3f\n",
                                   inet_ntoa(epd->client_addr),
                                   now_lc,
                                   epd->host ? epd->host : "-",
                                   epd->method ? epd->method : "-",
                                   epd->uri ? epd->uri : "/",
                                   epd->http_ver ? epd->http_ver : "-",
+                                  epd->header_len,
+                                  epd->content_length > 0 ? epd->content_length : 0,
                                   response_code,
                                   epd->response_content_length,
                                   epd->response_content_length - epd->response_header_length,
@@ -249,7 +333,7 @@ void network_be_end(epdata_t *epd) // for lua function die
 
     //printf ( "network_be_end %d\n" , ((se_ptr_t*)epd->se_ptr)->fd );
     update_timeout(epd->timeout_ptr, STEP_SEND_TIMEOUT);
-    se_be_write(epd->se_ptr, network_be_write);
+
     serv_status.success_counts++;
     epd->status = STEP_SEND;
     serv_status.sending_counts++;
@@ -257,11 +341,13 @@ void network_be_end(epdata_t *epd) // for lua function die
     if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL && epd->response_sendfile_fd == -1) {
         serv_status.sending_counts--;
         network_send_error(epd, 417, "");
+        return;
 
     } else if(epd->response_sendfile_fd == -2) {
         epd->response_sendfile_fd = -1;
         serv_status.sending_counts--;
         network_send_error(epd, 404, "File Not Found!");
+        return;
 
     } else {
         int gzip_data = 0;
@@ -344,7 +430,7 @@ void network_be_end(epdata_t *epd) // for lua function die
 
                 if(epd->iov[0].iov_base == NULL) {
                     epd->keepalive = 0;
-                    network_end_process(epd);
+                    network_end_process(epd, epd->se_ptr ? 0 : 499);
                     serv_status.sending_counts--;
                     return;
                 }
@@ -382,14 +468,47 @@ void network_be_end(epdata_t *epd) // for lua function die
                 }
             }
 
-            network_end_process(epd);
+            network_end_process(epd, epd->se_ptr ? 0 : 499);
             serv_status.sending_counts--;
+            return;
 
         } else {
             epd->response_buf_sended = 0;
 
         }
     }
+
+    if(!epd->se_ptr) {
+        //client is gone
+        network_end_process(epd, 499);
+        return;
+    }
+
+    se_be_write(epd->se_ptr, network_be_write);
+}
+
+int network_be_read_on_processing(se_ptr_t *ptr)
+{
+    epdata_t *epd = ptr->data;
+
+    if(!epd) {
+        return 0;
+    }
+
+    int n = 0, b = 0;
+
+    while((n = recv(epd->fd, &temp_buf, 8192, 0)) > 0) {
+        b = 1;
+    }
+
+    if(n <= 0 || b) {
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        close(epd->fd);
+        epd->fd = -1;
+    }
+
+    return 1;
 }
 
 int network_be_read(se_ptr_t *ptr)
@@ -430,6 +549,7 @@ int network_be_read(se_ptr_t *ptr)
 
     while((n = recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0)) >= 0) {
         if(n == 0) {
+            LOGF(ERR, "Read Error!");
             close_client(epd);
             epd = NULL;
             break;
@@ -615,7 +735,8 @@ int network_be_read(se_ptr_t *ptr)
             }
             /// end.
 
-            se_be_pri(epd->se_ptr, NULL); // be wait
+            //se_be_pri(epd->se_ptr, NULL); // be wait
+            se_be_read(epd->se_ptr, network_be_read_on_processing);
 
             if(epd->status == STEP_READ) {
                 serv_status.reading_counts--;
@@ -710,7 +831,7 @@ int network_be_write(se_ptr_t *ptr)
 
                 if(epd->response_buf_sended + n >= epd->response_content_length) {
                     //printf("%ld sended %ld\n", epd->response_content_length, epd->response_buf_sended+n);
-                    network_end_process(epd);
+                    network_end_process(epd, 0);
                     serv_status.sending_counts--;
                     break;
                 }
@@ -725,14 +846,13 @@ int network_be_write(se_ptr_t *ptr)
                     int set = 0;
                     setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
 #endif
-                    network_end_process(epd);
+                    network_end_process(epd, 0);
                     serv_status.sending_counts--;
                     break;
                 }
             }
 
             if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-                //printf("error end\n");
                 epd->keepalive = 0;
 
                 if(epd->response_sendfile_fd > -1) {
@@ -743,7 +863,7 @@ int network_be_write(se_ptr_t *ptr)
                     close(epd->response_sendfile_fd);
                 }
 
-                network_end_process(epd);
+                network_end_process(epd, 0);
                 serv_status.sending_counts--;
                 break;
             }

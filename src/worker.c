@@ -123,9 +123,14 @@ static void timeout_handle(void *ptr)
     epdata_t *epd = ptr;
 
     if(epd->status == STEP_READ) {
-        serv_status.reading_counts--;
+        epd->keepalive = 0;
+        //LOGF(ERR, "Read Timeout!");
+        network_send_error(epd, 400, "Timeout!");
+        return;
+        //serv_status.reading_counts--;
 
     } else if(epd->status == STEP_SEND) {
+        //LOGF(ERR, "Send Timeout!");
         serv_status.sending_counts--;
     }
 
@@ -165,7 +170,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_getglobal(L, "process");
 
-    update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT+100);
+    update_timeout(epd->timeout_ptr, STEP_PROCESS_TIMEOUT + 100);
 
     int init_tables = 0;
     char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL;
@@ -502,7 +507,6 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_pushstring(L, epd->vhost_root + epd->vhost_root_len); /// index-route.lua file
 
     epd->contents = NULL;
-    epd->content_length = 0;
     epd->iov[0].iov_base = NULL;
     epd->iov[0].iov_len = 0;
     epd->iov[1].iov_base = NULL;
@@ -552,6 +556,7 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     epd->content_length = -1;
     epd->keepalive = -1;
     epd->response_sendfile_fd = -1;
+    epd->start_time = now * 1000;
 
     epd->se_ptr = se_add(loop_fd, client_fd, epd);
     epd->timeout_ptr = add_timeout(epd, STEP_WAIT_TIMEOUT, timeout_handle);
