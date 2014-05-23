@@ -2,10 +2,25 @@
 
 static vhost_conf_t *vhost_conf_head = NULL;
 static lua_State *L = NULL;
+static void *update_timeout_ptr = NULL;
+static char *conf_file = NULL;
 
 int max_request_header = 0; // default no limit
 int max_request_body = 0;
 int code_cache_ttl = 60; // set 0 to disable code cache
+int auto_reload_vhost_router = 0;
+char *temp_path = NULL;
+
+static void timeout_handle(void *ptr)
+{
+    if(auto_reload_vhost_router > 0) {
+        update_vhost_routes(conf_file);
+        update_timeout(update_timeout_ptr, auto_reload_vhost_router);
+
+    } else {
+        update_timeout(update_timeout_ptr, 600000);
+    }
+}
 
 static int get_int_in_table(lua_State *L, const char *name)
 {
@@ -20,6 +35,21 @@ static int get_int_in_table(lua_State *L, const char *name)
     return r;
 }
 
+static char *get_string_in_table(lua_State *L, const char *name, size_t *l)
+{
+    char *r = NULL;
+    lua_getfield(L, -1, name);
+
+    if(lua_isstring(L, -1)) {
+        r = (char *)lua_tolstring(L, -1, l);
+    }
+
+    lua_pop(L, 1);
+    return r;
+}
+
+vhost_conf_t *get_vhost_conf(char *host, int prefix, int ignore_exists);
+
 int update_vhost_routes(char *f)
 {
     if(!f) {
@@ -28,14 +58,13 @@ int update_vhost_routes(char *f)
 
     if(!L) {
         L = luaL_newstate();
+        luaL_openlibs(L);
     }
 
     if(!L) {
         LOGF(ERR, "can't open lua state!");
         return 0;
     }
-
-    luaL_openlibs(L);
 
     luaL_dostring(L, "config={} host_route={}");
 
@@ -51,7 +80,9 @@ int update_vhost_routes(char *f)
             break;
         }
 
+        void *o = last_vcf;
         last_vcf = last_vcf->next;
+        last_vcf->prev = o;
     }
 
     lua_getglobal(L, "config");
@@ -70,6 +101,26 @@ int update_vhost_routes(char *f)
         max_request_body = 0;
     }
 
+
+    size_t tl = 0;
+    char *t = get_string_in_table(L, "temp-path", &tl);
+
+    if(t) {
+        if(temp_path) {
+            free(temp_path);
+        }
+
+        temp_path = malloc(tl + 1);
+        memcpy(temp_path, t, tl);
+
+        if(temp_path[tl - 1] != '/') {
+            temp_path[tl] = '/';
+            tl++;
+        }
+
+        temp_path[tl] = '\0';
+    }
+
     code_cache_ttl = get_int_in_table(L, "code-cache-ttl");
 
     if(code_cache_ttl < 0) {
@@ -77,21 +128,41 @@ int update_vhost_routes(char *f)
         code_cache_ttl = 60;
     }
 
+    auto_reload_vhost_router = get_int_in_table(L, "auto-reload-vhost-conf");
+
+    if(auto_reload_vhost_router >= 10) {
+        auto_reload_vhost_router *= 1000;
+
+        if(!update_timeout_ptr) {
+            conf_file = malloc(strlen(f));
+            memcpy(conf_file, f, strlen(f));
+            conf_file[strlen(f)] = '\0';
+            update_timeout_ptr = add_timeout(NULL, auto_reload_vhost_router, timeout_handle);
+        }
+    }
+
     lua_pop(L, 1);
 
     lua_getglobal(L, "host_route");
     lua_pushnil(L);
 
+    vhost_conf_t *vcf = vhost_conf_head;
+
+    while(vcf) {
+        vcf->mtype = -1;
+        vcf = vcf->next;
+    }
+
     while(lua_next(L, -2)) {
         if(lua_isstring(L, -2)) {
             size_t host_len = 0;
             char *host = (char *)lua_tolstring(L, -2, &host_len);
-            in_link = get_vhost_conf(host, 0);
+            in_link = get_vhost_conf(host, 0, 1);
 
             if(host_len < 256) {
                 size_t root_len = 0;
                 char *root = (char *)lua_tolstring(L, -1, &root_len);
-                vhost_conf_t *vcf = NULL;
+                vcf = NULL;
 
                 if(root_len < 1024) {
                     if(!in_link) {
@@ -114,14 +185,16 @@ int update_vhost_routes(char *f)
 
                         } else {
                             if(vcf->mtype == 1) {
-
                                 if(strlen(last_vcf->host) > 1) {
                                     last_vcf->next = vcf;
                                     vcf->prev = last_vcf;
                                     last_vcf = vcf;
 
                                 } else {
-                                    (last_vcf->prev)->next = vcf;
+                                    if(last_vcf->prev) {
+                                        (last_vcf->prev)->next = vcf;
+                                    }
+
                                     vcf->prev = last_vcf->prev;
                                     vcf->next = last_vcf;
                                     last_vcf->prev = vcf;
@@ -135,6 +208,8 @@ int update_vhost_routes(char *f)
                         }
 
                     } else {
+                        LOGF(ALERT, "update vhost: %s => %s", host, root);
+                        in_link->mtype = (in_link->host[0] == '*');
                         memcpy(in_link->root, root, root_len);
                         in_link->root[root_len] = '\0';
                         vcf = in_link;
@@ -164,7 +239,7 @@ int update_vhost_routes(char *f)
     return 1;
 }
 
-vhost_conf_t *get_vhost_conf(char *host, int prefix)
+vhost_conf_t *get_vhost_conf(char *host, int prefix, int ignore_exists)
 {
     if(!host) {
         return NULL;
@@ -173,15 +248,17 @@ vhost_conf_t *get_vhost_conf(char *host, int prefix)
     vhost_conf_t *vcf = vhost_conf_head;
 
     while(vcf) {
-        if(stricmp(host, vcf->host) == 0) {
-            return vcf;
-        }
+        if(vcf->mtype != -1 || ignore_exists) {
+            if(stricmp(host, vcf->host) == 0) {
+                return vcf;
+            }
 
-        int a = strlen(host);
-        int b = vcf->host_len;
+            int a = strlen(host);
+            int b = vcf->host_len;
 
-        if(prefix && vcf->mtype == 1 && (b == 1 || (a >= (b - 1) && stricmp(vcf->host + 1, host + (a - b + 1)) == 0))) {
-            return vcf;
+            if(prefix && vcf->mtype == 1 && (b == 1 || (a >= (b - 1) && stricmp(vcf->host + 1, host + (a - b + 1)) == 0))) {
+                return vcf;
+            }
         }
 
         vcf = vcf->next;
@@ -194,7 +271,7 @@ static char *_default_index_file = NULL;
 static int _vhost_root_len = 0;
 char *get_vhost_root(char *host, int *vhost_root_len)
 {
-    vhost_conf_t *vcf = get_vhost_conf(host, 1);
+    vhost_conf_t *vcf = get_vhost_conf(host, 1, 0);
 
     if(!vcf) {
         if(!_default_index_file) {

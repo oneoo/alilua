@@ -15,7 +15,6 @@ typedef struct vhost_conf_s {
 } vhost_conf_t;
 
 int update_vhost_routes(char *f);
-vhost_conf_t *get_vhost_conf(char *host, int prefix);
 char *get_vhost_root(char *host, int *vhost_root_len);
 
 #endif
