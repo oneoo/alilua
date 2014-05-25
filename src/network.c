@@ -549,8 +549,15 @@ int network_be_read(se_ptr_t *ptr)
 
     while((n = recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0)) >= 0) {
         if(n == 0) {
-            LOGF(ERR, "Read Error!");
-            close_client(epd);
+            if(epd->data_len > 0) {
+                epd->keepalive = 0;
+                network_end_process(epd, 400);
+                serv_status.reading_counts--;
+
+            } else {
+                close_client(epd);
+            }
+
             epd = NULL;
             break;
         }
