@@ -94,6 +94,10 @@ static int is_match(const char *rule, const char *uri)
     nr[nr_len] = '\0';
     //printf("== %s  %s [%d]\n", nr, uri, v_p_count2);
 
+    if((fck > 1 && strncmp(uri, nr + 1, fck) != 0)) {
+        return 0;
+    }
+
     uint32_t key = fnv1a_32(nr, nr_len);
     int _key = key % REGEX_CACHE_SIZE;
     re = regex_cache[_key];
@@ -124,11 +128,7 @@ static int is_match(const char *rule, const char *uri)
     }
 
     unsigned int g = 0;
-    int reti = -1;
-
-    if((fck < 2 || strncmp(uri, nr + 1, fck) == 0)) {
-        reti = regexec(re, uri, 100, pm, 0);
-    }
+    int reti = regexec(re, uri, 100, pm, 0);
 
     if(reti == 0) {
         for(g = 0; g < 100; g++) {
