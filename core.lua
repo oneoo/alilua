@@ -305,19 +305,6 @@ function router(u,t,p)
     end
 end
 
--- if u need safe require in vhost env
---[[
-_require = require
-function require(n)
-    local _n = __root..n
-    if not package.loaded[_n] then
-        package.loaded[n] = nil
-        package.loaded[_n] = _require(n)
-    end
-    return package.loaded[_n]
-end
-]]
-
 function process(_headers, __GET, __COOKIE, __POST, _root, index)
     headers = _headers
     _GET = __GET
