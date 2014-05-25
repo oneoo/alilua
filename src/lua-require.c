@@ -6,7 +6,7 @@
 static char tbuf_4096[4096] = {0};
 extern int code_cache_ttl;
 static const int sentinel_ = 0;
-static unsigned short require_loader_ttls[4096] = {0};
+static unsigned short require_loaded_ttls[4096] = {0};
 int lua_f_package_require(lua_State *L)
 {
     const char *name = luaL_checkstring(L, 1);
@@ -31,15 +31,15 @@ int lua_f_package_require(lua_State *L)
 
         uint32_t k = fnv1a_32(cache_name, epd->vhost_root_len + l) % 4096;
 
-        //printf("%u %u\n", ((unsigned short)now), require_loader_ttls[k]);
-        if(code_cache_ttl > 0 && ((unsigned short)now) - require_loader_ttls[k] >= code_cache_ttl) {
+        //printf("%u %u\n", ((unsigned short)now), require_loaded_ttls[k]);
+        if(code_cache_ttl > 0 && ((unsigned short)now) - require_loaded_ttls[k] >= code_cache_ttl) {
             skip_loaded = 1;
 
-            if(require_loader_ttls[k] == 0) {
-                require_loader_ttls[k] = ((unsigned short)now) + (k % code_cache_ttl);
+            if(require_loaded_ttls[k] == 0) {
+                require_loaded_ttls[k] = ((unsigned short)now) + (k % code_cache_ttl);
 
             } else {
-                require_loader_ttls[k] = ((unsigned short)now);
+                require_loaded_ttls[k] = ((unsigned short)now);
             }
         }
     }
