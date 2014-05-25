@@ -138,6 +138,13 @@ int main(int argc, const char **argv)
         lua_setglobal(_L, "CODE_CACHE_TTL");
     }
 
+    lua_getglobal(_L, "require");
+    lua_pushcfunction(_L, lua_f_package_require);
+    lua_getfenv(_L, -2);
+    int ret = lua_setfenv(_L, -2);
+    lua_setglobal(_L, "require");
+    lua_pop(_L, 1);
+
     lua_register(_L, "co_get_request", lua_co_get_request);
     lua_register(_L, "echo", lua_echo);
     lua_register(_L, "print_error", lua_print_error);
