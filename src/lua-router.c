@@ -30,9 +30,14 @@ static int is_match(const char *rule, const char *uri)
     static regmatch_t pm[100];
     int m = strlen(rule);
     char *nr = malloc(m * 2 + 10);
-    int i = 0, gk = 0, nr_len = 0;;
+    int i = 0, gk = 0, nr_len = 0, fck = 0;
 
     v_p_count2 = 1;
+
+    if(rule[0] != '^') {
+        nr[0] = '^';
+        nr_len++;
+    }
 
     for(i = 0; i < m; i++) {
 
@@ -40,8 +45,16 @@ static int is_match(const char *rule, const char *uri)
             gk = 1;
             v_p2[v_p_count2] = (char *)rule + (i + 1);
 
+            if(fck == 0) {
+                fck = nr_len - 1;
+            }
+
         } else {
             if((rule[i] == '(' || rule[i] == '[' || rule[i] == '$' || rule[i] == '/')) {
+                if(fck == 0 && rule[i] != '/') {
+                    fck = nr_len - 1;
+                }
+
                 if(gk == 1) {
                     gk = 0;
                     v_p_len2[v_p_count2] = (rule + i) - v_p2[v_p_count2];
@@ -111,9 +124,13 @@ static int is_match(const char *rule, const char *uri)
     }
 
     unsigned int g = 0;
-    int reti = regexec(re, uri, 100, pm, 0);
+    int reti = -1;
 
-    if(!reti) {
+    if((fck < 2 || strncmp(uri, nr + 1, fck) == 0)) {
+        reti = regexec(re, uri, 100, pm, 0);
+    }
+
+    if(reti == 0) {
         for(g = 0; g < 100; g++) {
             if(pm[g].rm_so == (size_t) - 1) {
                 break; // No more groups
@@ -314,3 +331,4 @@ int lua_f_router(lua_State *L)
 
     return 0;
 }
+
