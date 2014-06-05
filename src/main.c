@@ -145,7 +145,6 @@ int main(int argc, const char **argv)
     lua_setglobal(_L, "require");
     lua_pop(_L, 1);
 
-    lua_register(_L, "co_get_request", lua_co_get_request);
     lua_register(_L, "echo", lua_echo);
     lua_register(_L, "print_error", lua_print_error);
     lua_register(_L, "sendfile", lua_sendfile);

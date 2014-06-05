@@ -6,6 +6,7 @@ date = require('date')
 loadtemplate = require('loadtemplate')
 httpclient = (require "httpclient").httprequest
 llmdb = require('llmdb-client')
+cmsgpack = require('cmsgpack')
 
 md5 = function(s) return crypto.evp.digest('md5', s) end
 function string:trim() return self:gsub('^%s*(.-)%s*$', '%1') end

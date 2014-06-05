@@ -91,11 +91,6 @@ lua_State *new_lua_thread(lua_State *_L)
     return L;
 }
 
-int lua_co_get_request(lua_State *L)
-{
-    return lua_yield(L, lua_gettop(L));
-}
-
 void init_lua_threads(lua_State *_L, int count)
 {
     int i = 0;
