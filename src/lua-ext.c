@@ -446,7 +446,107 @@ int lua_die(lua_State *L)
     return 0;
 }
 
-int lua_get_post_body(lua_State *L)
+static int network_be_read_request_body(se_ptr_t *ptr)
+{
+    //printf("network_be_read_request_body\n");
+    epdata_t *epd = ptr->data;
+
+    if(!epd) {
+        return 0;
+    }
+
+    int n = 0, readed = 0;
+    char *buf = malloc(65536);
+    int buf_size = 65536;
+
+    if(!buf) {
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        close(epd->fd);
+        epd->fd = -1;
+        serv_status.reading_counts--;
+
+        lua_pushnil(epd->L);
+        lua_pushstring(epd->L, "memory error");
+
+        if(lua_resume(epd->L, 2) != LUA_YIELD) {
+            if(lua_isstring(epd->L, -1)) {
+                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                lua_pop(epd->L, 1);
+            }
+        }
+
+        return 0;
+    }
+
+    while((n = recv(epd->fd, buf + readed, buf_size - readed, 0)) >= 0) {
+        if(n == 0) {
+            se_delete(epd->se_ptr);
+            epd->se_ptr = NULL;
+            close(epd->fd);
+            epd->fd = -1;
+            //serv_status.reading_counts--;
+
+            break;
+        }
+
+        epd->data_len += n;
+        readed += n;
+
+        //printf("readed: %d\n", n);
+        if(readed >= buf_size) {
+            char *p = realloc(buf, buf_size + 65536);
+
+            if(p) {
+                buf = p;
+                buf_size += 65536;
+
+            } else {
+                break;
+            }
+        }
+    }
+
+    if(readed > 0) {
+        se_be_pri(epd->se_ptr, NULL); // be wait
+
+        lua_pushlstring(epd->L, buf, readed);
+        free(buf);
+
+        if(lua_resume(epd->L, 1) != LUA_YIELD) {
+            if(lua_isstring(epd->L, -1)) {
+                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                lua_pop(epd->L, 1);
+            }
+        }
+
+    } else if(n == 0) {
+        n = -1;
+        errno = 1;
+    }
+
+    if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        close(epd->fd);
+        epd->fd = -1;
+        serv_status.reading_counts--;
+
+        lua_pushnil(epd->L);
+        lua_pushstring(epd->L, "socket closed");
+
+        if(lua_resume(epd->L, 2) != LUA_YIELD) {
+            if(lua_isstring(epd->L, -1)) {
+                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                lua_pop(epd->L, 1);
+            }
+        }
+
+        return 0;
+    }
+}
+
+int lua_read_request_body(lua_State *L)
 {
     epdata_t *epd = get_epd(L);
 
@@ -460,15 +560,41 @@ int lua_get_post_body(lua_State *L)
         return 0;
     }
 
-    if(epd->content_length > 0) {
-        lua_pushlstring(L, epd->contents, epd->content_length);
+    if(epd->contents) {
+        epd->contents = NULL;
+
+        lua_pushlstring(L, epd->headers + epd->_header_length, epd->data_len - epd->_header_length);
+        return 1;
+    }
+
+    if(!epd->se_ptr || epd->content_length <= epd->data_len - epd->_header_length) {
+        lua_pushnil(L);
+        lua_pushstring(L, "eof");
+        return 2;
+    }
+
+    serv_status.reading_counts++;
+    se_be_read(epd->se_ptr, network_be_read_request_body);
+
+    return lua_yield(L, 0);
+}
+
+int lua_f_get_boundary(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    if(epd->boundary) {
+        lua_pushstring(L, epd->boundary);
 
     } else {
         lua_pushnil(L);
     }
-
-    epd->contents = NULL;
-    epd->content_length = 0;
 
     return 1;
 }

@@ -176,7 +176,6 @@ int worker_process(epdata_t *epd, int thread_at)
     char *pt1 = NULL, *pt2 = NULL, *t1 = NULL, *t2 = NULL, *t3 = NULL;
 
     int is_form_post = 0;
-    char *boundary_post = NULL;
     char *cookies = NULL;
     pt1 = epd->headers;
     int i = 0;
@@ -238,6 +237,10 @@ int worker_process(epdata_t *epd, int thread_at)
         t2 = strtok_r(t1, ":", &t1);
 
         if(t2) {
+            if(t2[0] == '\r') {
+                break;
+            }
+
             for(t3 = t2; *t3; ++t3) {
                 *t3 = *t3 >= 'A' && *t3 <= 'Z' ? *t3 | 0x60 : *t3;
             }
@@ -274,7 +277,11 @@ int worker_process(epdata_t *epd, int thread_at)
                         is_form_post = 1;
 
                     } else if(stristr(t3, "multipart/form-data", len)) {
-                        boundary_post = (char *)stristr(t3, "boundary=", len - 2);
+                        epd->boundary = (char *)stristr(t3, "boundary=", len - 2);
+
+                        if(epd->boundary) {
+                            epd->boundary += 9;
+                        }
                     }
 
                 } else if(!cookies && t2[1] == 'o' && strcmp(t2, "cookie") == 0) {
@@ -379,84 +386,70 @@ int worker_process(epdata_t *epd, int thread_at)
     }
 
     lua_setglobal(L, "_COOKIE");
+    /*
+        lua_newtable(L); /// _POST
 
-    lua_newtable(L); /// _POST
+        if(is_form_post == 1
+           && epd->contents) { /// parse post conents text=aa+bb&text2=%E4%B8%AD%E6%96%87+aa
+            pt1 = epd->contents;
 
-    if(is_form_post == 1
-       && epd->contents) { /// parse post conents text=aa+bb&text2=%E4%B8%AD%E6%96%87+aa
-        pt1 = epd->contents;
+            while(t1 = strtok_r(pt1, "&", &pt1)) {
+                t2 = strtok_r(t1, "=", &t1);
+                t3 = strtok_r(t1, "=", &t1);
 
-        while(t1 = strtok_r(pt1, "&", &pt1)) {
-            t2 = strtok_r(t1, "=", &t1);
-            t3 = strtok_r(t1, "=", &t1);
-
-            if(t2 && t3 && strlen(t2) > 0 && strlen(t3) > 0) {
-                size_t len, dlen;
-                u_char *p;
-                u_char *src, *dst;
-                len = strlen(t3);
-                p = malloc(len);
-                p[0] = '\0';
-                dst = p;
-                urldecode(&dst, (u_char **)&t3, len, 0);
-                lua_pushlstring(L, (char *) p, dst - p);
-                free(p);
-                //lua_pushstring(L, t3);
-                lua_setfield(L, -2, t2);
-            }
-        }
-
-    } else if(boundary_post) { /// parse boundary body
-        boundary_post += 9;
-        int blen = strlen(boundary_post);
-        int len = 0;
-        char *start = epd->contents, *p2 = NULL, *p1 = NULL, *pp = NULL, *value = NULL;
-        int i = 0;
-
-        do {
-            p2 = strstr(start, boundary_post);
-
-            if(p2) {
-                start = p2 + blen;
+                if(t2 && t3 && strlen(t2) > 0 && strlen(t3) > 0) {
+                    size_t len, dlen;
+                    u_char *p;
+                    u_char *src, *dst;
+                    len = strlen(t3);
+                    p = malloc(len);
+                    p[0] = '\0';
+                    dst = p;
+                    urldecode(&dst, (u_char **)&t3, len, 0);
+                    lua_pushlstring(L, (char *) p, dst - p);
+                    free(p);
+                    //lua_pushstring(L, t3);
+                    lua_setfield(L, -2, t2);
+                }
             }
 
-            if(p1) {
-                p1 += blen;
+        } else if(epd->boundary) { /// parse boundary body
+            int blen = strlen(epd->boundary);
+            int len = 0;
+            char *start = epd->contents, *p2 = NULL, *p1 = NULL, *pp = NULL, *value = NULL;
+            int i = 0;
+
+            do {
+                p2 = strstr(start, epd->boundary);
 
                 if(p2) {
-                    * (p2 - 4) = '\0';
-
-                } else {
-                    break;
+                    start = p2 + blen;
                 }
 
-                len = p2 - p1;
-                value = (char *)stristr(p1, "\r\n\r\n", len);
+                if(p1) {
+                    p1 += blen;
 
-                if(value && value[4] != '\0') {
-                    value[0] = '\0';
-                    value += 4;
-                    char *keyname = strstr(p1, "name=\"");
-                    char *filename = NULL;
-                    char *content_type = NULL;
+                    if(p2) {
+                        * (p2 - 4) = '\0';
 
-                    if(keyname) {
-                        keyname += 6;
+                    } else {
+                        break;
+                    }
 
-                        for(pp = keyname; *pp != '\0'; pp++) {
-                            if(*pp == '"') {
-                                *pp = '\0';
-                                p1 = pp + 2;
-                                break;
-                            }
-                        }
+                    len = p2 - p1;
+                    value = (char *)stristr(p1, "\r\n\r\n", len);
 
-                        filename = strstr(p1, "filename=\"");
+                    if(value && value[4] != '\0') {
+                        value[0] = '\0';
+                        value += 4;
+                        char *keyname = strstr(p1, "name=\"");
+                        char *filename = NULL;
+                        char *content_type = NULL;
 
-                        if(filename) {    /// is file filed
-                            filename += 10;
+                        if(keyname) {
+                            keyname += 6;
 
-                            for(pp = filename; *pp != '\0'; pp++) {
+                            for(pp = keyname; *pp != '\0'; pp++) {
                                 if(*pp == '"') {
                                     *pp = '\0';
                                     p1 = pp + 2;
@@ -464,41 +457,58 @@ int worker_process(epdata_t *epd, int thread_at)
                                 }
                             }
 
-                            content_type = strstr(p1, "Content-Type:");
+                            filename = strstr(p1, "filename=\"");
 
-                            if(content_type) {
-                                content_type += 13;
+                            if(filename) {    /// is file filed
+                                filename += 10;
 
-                                if(content_type[0] == ' ') {
-                                    content_type += 1;
+                                for(pp = filename; *pp != '\0'; pp++) {
+                                    if(*pp == '"') {
+                                        *pp = '\0';
+                                        p1 = pp + 2;
+                                        break;
+                                    }
                                 }
+
+                                content_type = strstr(p1, "Content-Type:");
+
+                                if(content_type) {
+                                    content_type += 13;
+
+                                    if(content_type[0] == ' ') {
+                                        content_type += 1;
+                                    }
+                                }
+
+                                lua_newtable(L);
+                                lua_pushstring(L, filename);
+                                lua_setfield(L, -2, "filename");
+                                lua_pushstring(L, content_type);
+                                lua_setfield(L, -2, "type");
+                                lua_pushnumber(L, p2 - value - 4);
+                                lua_setfield(L, -2, "size");
+                                lua_pushlstring(L, value, p2 - value - 4);
+                                lua_setfield(L, -2, "data");
+
+                                lua_setfield(L, -2, keyname);
+
+                            } else {
+                                lua_pushstring(L, value);
+                                lua_setfield(L, -2, keyname);
                             }
-
-                            lua_newtable(L);
-                            lua_pushstring(L, filename);
-                            lua_setfield(L, -2, "filename");
-                            lua_pushstring(L, content_type);
-                            lua_setfield(L, -2, "type");
-                            lua_pushnumber(L, p2 - value - 4);
-                            lua_setfield(L, -2, "size");
-                            lua_pushlstring(L, value, p2 - value - 4);
-                            lua_setfield(L, -2, "data");
-
-                            lua_setfield(L, -2, keyname);
-
-                        } else {
-                            lua_pushstring(L, value);
-                            lua_setfield(L, -2, keyname);
                         }
                     }
                 }
-            }
 
-            p1 = p2 + 2;
-        } while(p2);
-    }
+                p1 = p2 + 2;
+            } while(p2);
+        }
 
-    lua_setglobal(L, "_POST");
+        lua_setglobal(L, "_POST");
+    */
+
+    lua_pushnil(L);
+    lua_setglobal(L, "__body_buf");
 
     epd->vhost_root = get_vhost_root(epd->host, &epd->vhost_root_len);
 
@@ -512,12 +522,11 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_pop(L, 1); //void
 
     lua_pushlstring(L, epd->vhost_root, epd->vhost_root_len); /// host root
-    
+
     lua_setglobal(L, "__root");
 
     lua_pushstring(L, epd->vhost_root + epd->vhost_root_len); /// index-route.lua file
 
-    epd->contents = NULL;
     epd->iov[0].iov_base = NULL;
     epd->iov[0].iov_len = 0;
     epd->iov[1].iov_base = NULL;

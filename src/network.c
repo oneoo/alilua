@@ -5,6 +5,7 @@
 #include "worker.h"
 
 static char temp_buf[8192];
+static char temp_buf64k[61440];
 
 extern logf_t *ACCESS_LOG;
 extern int max_request_header;
@@ -323,8 +324,15 @@ void network_end_process(epdata_t *epd, int response_code)
     }
 }
 
+int network_be_read_on_clear(se_ptr_t *ptr);
 void network_be_end(epdata_t *epd) // for lua function die
 {
+    if(epd->content_length > epd->data_len - epd->_header_length) {
+        serv_status.reading_counts++;
+        se_be_read(epd->se_ptr, network_be_read_on_clear);
+        return;
+    }
+
     if(epd->process_timeout == 1 && epd->keepalive != -1) {
         epd->process_timeout = 0;
         free_epd(epd);
@@ -511,6 +519,47 @@ int network_be_read_on_processing(se_ptr_t *ptr)
     return 1;
 }
 
+int network_be_read_on_clear(se_ptr_t *ptr)
+{
+    //printf("network_be_read_on_clear\n");
+    epdata_t *epd = ptr->data;
+
+    if(!epd) {
+        return 0;
+    }
+
+    int n = 0;
+
+    while((n = recv(epd->fd, &temp_buf64k, 61440, 0)) >= 0) {
+        if(n == 0) {
+            se_delete(epd->se_ptr);
+            epd->se_ptr = NULL;
+            close(epd->fd);
+            epd->fd = -1;
+            serv_status.reading_counts--;
+            network_be_end(epd);
+            return 0;
+        }
+
+        epd->data_len += n;
+
+        if(epd->content_length <= epd->data_len - epd->_header_length) {
+            serv_status.reading_counts--;
+            network_be_end(epd);
+            return 0;
+        }
+    }
+
+    if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        close(epd->fd);
+        epd->fd = -1;
+        serv_status.reading_counts--;
+        network_be_end(epd);
+    }
+}
+
 int network_be_read(se_ptr_t *ptr)
 {
     epdata_t *epd = ptr->data;
@@ -677,20 +726,21 @@ int network_be_read(se_ptr_t *ptr)
             }
         }
 
-        if(epd->_header_length > 0 && (epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length)) {
+        if(epd->_header_length >
+           0 /*&& (epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length)*/ /*reading body on the fly*/) {
             /// start job
             epd->header_len = epd->_header_length;
             epd->headers[epd->data_len] = '\0';
             epd->header_len -= 1;
             epd->headers[epd->header_len] = '\0';
 
-            if(epd->header_len + 1 < epd->data_len) {
-                epd->contents = epd->headers + epd->header_len + 1;
+            if(epd->header_len < epd->data_len) {
+                epd->contents = epd->headers + epd->header_len;
 
-            } else {
+            }/* else {
+
                 epd->content_length = 0;
-            }
-
+            }*/
 
             if(USE_KEEPALIVE == 1 && (epd->keepalive == 1 || (stristr(epd->headers, "keep-alive", epd->header_len)))) {
                 epd->keepalive = 1;
@@ -742,8 +792,13 @@ int network_be_read(se_ptr_t *ptr)
             }
             /// end.
 
-            //se_be_pri(epd->se_ptr, NULL); // be wait
-            se_be_read(epd->se_ptr, network_be_read_on_processing);
+            if(epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length) {
+                // readed end
+                se_be_read(epd->se_ptr, network_be_read_on_processing);
+
+            } else {
+                se_be_pri(epd->se_ptr, NULL); // be wait
+            }
 
             if(epd->status == STEP_READ) {
                 serv_status.reading_counts--;

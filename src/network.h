@@ -38,6 +38,7 @@ typedef struct _epdata_t {
     char *referer;
     char *user_agent;
     char *if_modified_since;
+    char *boundary;
     long start_time;
 
     int data_len;
@@ -59,7 +60,7 @@ typedef struct _epdata_t {
     struct _epdata_t *job_next;
     struct _epdata_t *job_uper;
     struct in_addr client_addr;
-    char z[12]; /// align size to 4096
+    char z[4]; /// align size to 4096
 } epdata_t;
 
 typedef struct {

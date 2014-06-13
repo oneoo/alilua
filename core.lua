@@ -186,6 +186,123 @@ function print_error(e,h)
 end
 ]]
 
+function read_post_field_chunk()
+    local c,e
+    local b = get_boundary()
+    if b then
+        if not __body_buf then
+            c,e = read_request_body()
+            if c then
+                __body_buf = (__body_buf and __body_buf or '') .. c
+            elseif e then
+                return
+            end
+        end
+
+        local p = __body_buf:find(b, 1,1)
+
+        if p then
+            p = __body_buf:find("\r\n", p-4, 1)
+            if p then
+                local r = __body_buf:sub(1, p-1)
+                __body_buf = __body_buf:sub(p+2)
+                return r
+            end
+        else
+            local r = __body_buf
+            __body_buf = nil
+            return r
+        end
+
+        if e then __body_buf = nil return end
+    end
+end
+
+function read_post_field_data()
+    local r = nil
+    local d = read_post_field_chunk()
+
+    while d do
+        r = (r and r or '') .. d
+        d = read_post_field_chunk()
+    end
+
+    return r
+end
+
+function next_post_field()
+    local c,e
+    while 1 do
+        if __body_buf then
+            if headers['content-type'] and headers['content-type']:find('x-www-form-urlencoded',1,1) then
+                local p
+                if e then p = #__body_buf else
+                    p = __body_buf:find('&', 1,1)
+                    if p then p = p -1 end
+                end
+                if p then
+                    local r = __body_buf:sub(1, p)
+                    __body_buf = __body_buf:sub(p+2)
+                    if #__body_buf == 0 then __body_buf = nil end
+                    p = r:find('=',1,1)
+                    if p then
+                        local k = r:sub(1,p-1)
+                        local v = r:sub(p+1)
+                        return k,unescape_uri(v)
+                    end
+                    return r
+                end
+            else
+                local b = get_boundary()
+                if b then
+                    local p = __body_buf:find(b, 1,1)
+                    if p then
+                        p = __body_buf:find("\r\n\r\n", p, 1)
+                        if p then
+                            local info = __body_buf:sub(1,p-1)
+                            local a = info:find('name="',1,1)
+                            local b = a and info:find('"',a+6,1) or nil
+                            if a and b then
+                                __body_buf = __body_buf:sub(p+4)
+
+                                local c = info:find('filename="', a+6, 1)
+                                local f,t
+                                if c then
+                                    f = info:find('"', c+10,1)
+                                    if f then
+                                        f = info:sub(c+10, f-1)
+                                    else
+                                        f = nil
+                                    end
+
+                                    t = info:find('Content-Type: ',a+6,1)
+                                    if t then
+                                        t = info:sub(t+13)
+                                    else
+                                        t = nil
+                                    end
+                                end
+                                return info:sub(a+6,b-1),nil,true,f,t
+                            end
+                        else
+                            return
+                        end
+                    end
+                else
+                    return
+                end
+            end
+        end
+
+        c,e = read_request_body()
+        if c then
+            __body_buf = (__body_buf and __body_buf or '') .. c
+        elseif not __body_buf then
+            return
+        end
+    end
+end
+
 __yield = coroutine.yield
 _print = print
 print = echo
