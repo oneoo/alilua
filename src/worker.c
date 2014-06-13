@@ -202,7 +202,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
             } else {
                 if(init_tables == 0) {
-                    lua_newtable(L);
+                    lua_newtable(L); //headers
                 }
             }
 
@@ -297,6 +297,8 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
 
+    lua_setglobal(L, "headers");
+
     lua_newtable(L); /// _GET
 
     if(epd->query) { /// parse query string /?a=1&b=2
@@ -338,6 +340,8 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
+    lua_setglobal(L, "_GET");
+
     lua_newtable(L); /// _COOKIE
 
     if(cookies) {
@@ -373,6 +377,8 @@ int worker_process(epdata_t *epd, int thread_at)
             }
         }
     }
+
+    lua_setglobal(L, "_COOKIE");
 
     lua_newtable(L); /// _POST
 
@@ -492,6 +498,8 @@ int worker_process(epdata_t *epd, int thread_at)
         } while(p2);
     }
 
+    lua_setglobal(L, "_POST");
+
     epd->vhost_root = get_vhost_root(epd->host, &epd->vhost_root_len);
 
     memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len + 1);
@@ -504,6 +512,9 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_pop(L, 1); //void
 
     lua_pushlstring(L, epd->vhost_root, epd->vhost_root_len); /// host root
+    
+    lua_setglobal(L, "__root");
+
     lua_pushstring(L, epd->vhost_root + epd->vhost_root_len); /// index-route.lua file
 
     epd->contents = NULL;
@@ -514,7 +525,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_routed = 0;
 
-    if(lua_resume(L, 6) != LUA_YIELD) {
+    if(lua_resume(L, 1) != LUA_YIELD) {
         if(lua_isstring(L, -1)) {
             LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
             network_send_error(epd, 503, lua_tostring(L, -1));

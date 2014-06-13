@@ -306,12 +306,7 @@ function router(u,t,p)
     end
 end
 
-function process(_headers, __GET, __COOKIE, __POST, _root, index)
-    headers = _headers
-    _GET = __GET
-    _COOKIE = __COOKIE
-    _POST = __POST
-    __root = _root
+function process(index)
     local r,e = loadfile(index)
     if r and not e then
         r,e = pcall(r)
@@ -324,7 +319,7 @@ function process(_headers, __GET, __COOKIE, __POST, _root, index)
         print_error(e)
     end
 
-    if on_shutdown then pcall(on_shutdown) end
+    pcall(on_shutdown)
 
     __end()
 end

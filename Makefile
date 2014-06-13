@@ -56,6 +56,7 @@ main.o:
 	[ -f lua-libs/zlib.so ] || (cd coevent/lua-libs/lzlib && make LIBLUA="$(LIBLUA)" && cp zlib.so ../../../lua-libs/ && make clean && rm -rf *.o);
 	[ -f lua-libs/llmdb.so ] || (cd coevent/lua-libs/lightningmdb && make LIBLUA="$(LIBLUA)" && cp llmdb.so ../../../lua-libs/ && make clean);
 	[ -f lua-libs/cmsgpack.so ] || (cd coevent/lua-libs/lua-cmsgpack && make LIBLUA="$(LIBLUA)" && cp cmsgpack.so ../../../lua-libs/ && make clean);
+	[ -f lua-libs/monip.so ] || (cd coevent/lua-libs/lua-monip && make LIBLUA="$(LIBLUA)" && cp monip.so ../../../lua-libs/ && make clean);
 
 .PHONY : clean zip install noopt hardmode
 
