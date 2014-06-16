@@ -248,7 +248,7 @@ function next_post_field()
                     if p then
                         local k = r:sub(1,p-1)
                         local v = r:sub(p+1)
-                        return k,unescape_uri(v)
+                        return unescape_uri(k),unescape_uri(v)
                     end
                     return r
                 end
