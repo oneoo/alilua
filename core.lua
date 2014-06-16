@@ -18,6 +18,8 @@ implode = table.concat
 escape = _G['string-utils'].escape
 escape_uri = _G['string-utils'].escape_uri
 unescape_uri = _G['string-utils'].unescape_uri
+urlencode = _G['string-utils'].escape_uri
+urldecode = _G['string-utils'].unescape_uri
 base64_encode = _G['string-utils'].base64_encode
 base64_decode = _G['string-utils'].base64_decode
 strip = _G['string-utils'].strip
@@ -232,7 +234,10 @@ end
 
 function next_post_field()
     local c,e
+    local nr = 1
     while 1 do
+        nr = nr + 1
+        if nr > 100 then return end
         if __body_buf then
             if headers['content-type'] and headers['content-type']:find('x-www-form-urlencoded',1,1) then
                 local p
@@ -282,7 +287,7 @@ function next_post_field()
                                         t = nil
                                     end
                                 end
-                                return info:sub(a+6,b-1),nil,true,f,t
+                                return unescape_uri(info:sub(a+6,b-1), true),nil,true,f,t
                             end
                         else
                             return
@@ -295,9 +300,10 @@ function next_post_field()
         end
 
         c,e = read_request_body()
+
         if c then
             __body_buf = (__body_buf and __body_buf or '') .. c
-        elseif not __body_buf then
+        elseif not __body_buf or #__body_buf < 1 then
             return
         end
     end
