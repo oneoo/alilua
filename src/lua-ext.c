@@ -482,7 +482,6 @@ static int network_be_read_request_body(se_ptr_t *ptr)
 
     while((n = recv(epd->fd, buf + readed, buf_size - readed, 0)) >= 0) {
         if(n == 0) {
-            LOGF(ERR, "del pri");
             se_delete(epd->se_ptr);
             epd->se_ptr = NULL;
             close(epd->fd);
@@ -511,7 +510,6 @@ static int network_be_read_request_body(se_ptr_t *ptr)
 
     if(readed > 0) {
         se_be_pri(epd->se_ptr, NULL); // be wait
-        LOGF(ERR, "be pri");
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
 
@@ -528,7 +526,6 @@ static int network_be_read_request_body(se_ptr_t *ptr)
     }
 
     if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        LOGF(ERR, "del pri");
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);
