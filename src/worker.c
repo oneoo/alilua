@@ -332,14 +332,14 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = (u_char *)&buf_4096;
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char **)&t3, plen3, 0);
-                lua_pushlstring(L, (char *) p, dst - p);
+                dlen = urldecode(&p, (u_char **)&t3, plen3, RAW_UNESCAPE_URL);
+                lua_pushlstring(L, (char *) p, dlen);
 
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, (u_char **)&t2, plen2, 0);
-                p[dst - p] = '\0';
+                dlen = urldecode(&dst, (u_char **)&t2, plen2, RAW_UNESCAPE_URL);
+                p[dlen] = '\0';
                 lua_setfield(L, -2, p);
             }
 
@@ -364,8 +364,8 @@ int worker_process(epdata_t *epd, int thread_at)
                 p = malloc(len);
                 p[0] = '\0';
                 dst = p;
-                urldecode(&dst, (u_char **)&t3, len, 0);
-                lua_pushlstring(L, (char *) p, dst - p);
+                dlen = urldecode(&dst, (u_char **)&t3, len, RAW_UNESCAPE_URL);
+                lua_pushlstring(L, (char *) p, dlen);
 
                 len = strlen(t2);
 
@@ -377,8 +377,8 @@ int worker_process(epdata_t *epd, int thread_at)
                 p[0] = '\0';
                 dst = p;
 
-                urldecode(&dst, (u_char **)&t2, len, 0);
-                p[dst - p] = '\0';
+                dlen = urldecode(&dst, (u_char **)&t2, len, RAW_UNESCAPE_URL);
+                p[dlen] = '\0';
                 lua_setfield(L, -2, p + (p[0] == ' ' ? 1 : 0));
                 free(p);
             }
@@ -405,8 +405,8 @@ int worker_process(epdata_t *epd, int thread_at)
                     p = malloc(len);
                     p[0] = '\0';
                     dst = p;
-                    urldecode(&dst, (u_char **)&t3, len, 0);
-                    lua_pushlstring(L, (char *) p, dst - p);
+                    dlen = urldecode(&dst, (u_char **)&t3, len, RAW_UNESCAPE_URL);
+                    lua_pushlstring(L, (char *) p, dlen);
                     free(p);
                     //lua_pushstring(L, t3);
                     lua_setfield(L, -2, t2);
