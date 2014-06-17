@@ -309,6 +309,25 @@ function next_post_field()
     end
 end
 
+function parse_www_form()
+    _POST = {}
+    if headers['content-type'] and headers['content-type']:find('x-www-form-urlencoded',1,1) then
+        local key,val = next_post_field()
+        while key do
+            if #key > 2 and key:sub(#key-1) == '[]' then
+                key = key:sub(1, #key-2)
+                if not _POST[key] then _POST[key] = {} end
+                table.insert(_POST[key], val)
+            else
+                _POST[key] = val
+            end
+
+            key,val = next_post_field()
+        end
+    end
+    return _POST
+end
+
 __yield = coroutine.yield
 _print = print
 print = echo
