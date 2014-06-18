@@ -15,6 +15,7 @@ local base64_encode = base64_encode
 local insert=table.insert
 local concat=table.concat
 local match = string.match
+local char = string.char
 local function trim(s)
 	return match(s,'^()%s*$') and '' or match(s,'^%s*(.*%S)')
 end
@@ -351,20 +352,20 @@ function httprequest(url, params)
 		end
 	end
 	
-	if zlib then
-		if gziped then
-			i = 1
-			local maxi = #bodys
-			local stream = zlib.inflate(function()
-					i=i+1
-					if i > maxi+1 then return nil end
-					return bodys[i-1]
-			end)
-			bodys = stream:read('*a')
-			stream:close()
-		elseif deflated then
-			bodys = zlib.decompress(concat(bodys),-8)
+	if zlib and (gziped or deflated) then
+		if deflated and bodys[1]:byte(1) ~= 120 and bodys[1]:byte(1) ~= 156 then
+			bodys[1] = char(120,156) .. bodys[1]
 		end
+
+		i = 1
+		local maxi = #bodys
+		local stream = zlib.inflate(function()
+				i=i+1
+				if i > maxi+1 then return nil end
+				return bodys[i-1]
+		end)
+		bodys = stream:read('*a')
+		stream:close()
 	end
 	
 	if type(bodys) == 'table' then bodys = concat(bodys) end

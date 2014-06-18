@@ -29,6 +29,8 @@ ifndef $(PREFIX)
 PREFIX = /usr/local/alilua
 endif
 
+mkfile_path := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+
 all: alilua
 
 alilua : main.o
@@ -64,6 +66,7 @@ clean:
 	rm -rf objs;
 	rm -rf alilua;
 	rm -rf lua-libs/*.so;
+	rm -rf test-scripts/*.so;
 	cd luajit && make clean;
 
 zip:
@@ -82,6 +85,21 @@ install:all
 	cp index.lua $(PREFIX)/
 	cp lua-libs/*.lua $(PREFIX)/lua-libs/
 	cp lua-libs/*.so $(PREFIX)/lua-libs/
+
+test:
+	[ -d objs ] || mkdir objs;
+	[ -d objs/merry ] || mkdir objs/merry;
+	[ -f luajit/src/libluajit.a ] || (make);
+	[ -f test-scripts/coevent.so ] || (cd coevent && make LUAJIT=$(mkfile_path)/luajit/src);
+	(./alilua daemon=1);
+	cd test-scripts && ../luajit/src/luajit tester.lua;
+	(ps aux|grep alilua|grep -v grep|awk '{print $$2}'|xargs kill);
+	cd coevent && make clean;
+
+update:
+	(git submodule init && git submodule update)
+	(cd coevent && git submodule init && git submodule update)
+	(cd luajit && make)
 
 noopt:
 	$(MAKE) OPTIMIZATION=""
