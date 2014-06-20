@@ -188,7 +188,7 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->user_agent = NULL;
     epd->if_modified_since = NULL;
 
-    epd->start_time = longtime();
+    //epd->start_time = longtime();
 
     while(t1 = strtok_r(pt1, "\n", &pt1)) {
         if(++i == 1) { /// first line
@@ -576,7 +576,7 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     epd->content_length = -1;
     epd->keepalive = -1;
     epd->response_sendfile_fd = -1;
-    epd->start_time = now * 1000;
+    //epd->start_time = longtime();
 
     epd->se_ptr = se_add(loop_fd, client_fd, epd);
     epd->timeout_ptr = add_timeout(epd, STEP_WAIT_TIMEOUT, timeout_handle);

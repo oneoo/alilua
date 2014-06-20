@@ -574,7 +574,15 @@ int network_be_read(se_ptr_t *ptr)
 
     if(epd->headers == NULL) {
         epd->headers = malloc(4096);
+
+        if(epd->headers == NULL) {
+            LOGF(ERR, "malloc error");
+            close_client(epd);
+            return 0;
+        }
+
         epd->buf_size = 4096;
+        epd->start_time = longtime();
 
     } else if(epd->data_len == epd->buf_size) {
         {
@@ -584,11 +592,8 @@ int network_be_read(se_ptr_t *ptr)
                 epd->headers = _t;
 
             } else {
-                epd->iov[0].iov_base = NULL;
-                epd->iov[0].iov_len = 0;
-                epd->iov[1].iov_base = NULL;
-                epd->iov[1].iov_len = 0;
-                network_send_error(epd, 503, "memory error!");
+                LOGF(ERR, "malloc error");
+                close_client(epd);
                 return 0;
             }
 
@@ -618,11 +623,8 @@ int network_be_read(se_ptr_t *ptr)
                 epd->headers = _t;
 
             } else {
-                epd->iov[0].iov_base = NULL;
-                epd->iov[0].iov_len = 0;
-                epd->iov[1].iov_base = NULL;
-                epd->iov[1].iov_len = 0;
-                network_send_error(epd, 503, "memory error!");
+                LOGF(ERR, "malloc error");
+                close_client(epd);
                 return 0;
             }
 
@@ -726,8 +728,8 @@ int network_be_read(se_ptr_t *ptr)
             }
         }
 
-        if(epd->_header_length >
-           0 /*&& (epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length)*/ /*reading body on the fly*/) {
+        if(epd->_header_length > 0) {
+            /*&& (epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length)*/ /*reading body on the fly*/
             /// start job
             epd->header_len = epd->_header_length;
             epd->headers[epd->data_len] = '\0';
