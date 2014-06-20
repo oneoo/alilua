@@ -1,0 +1,1 @@
+setcookie('key', '中文 +abc', 0, '/abc')
