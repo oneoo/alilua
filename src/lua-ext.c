@@ -332,8 +332,10 @@ int network_sendfile(epdata_t *epd, const char *path)
         return 1;
     }
 
-    sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
-    network_send_header(epd, temp_buf);
+    if(epd->iov[0].iov_base == NULL || !stristr(epd->iov[0].iov_base, "content-type:", epd->response_header_length)) {
+        sprintf(temp_buf, "Content-Type: %s", get_mime_type(path));
+        network_send_header(epd, temp_buf);
+    }
 
     sprintf(temp_buf, "Last-Modified: %s", _gmt_time);
     network_send_header(epd, temp_buf);
@@ -442,6 +444,32 @@ int lua_die(lua_State *L)
     lua_error(L); /// stop lua script
 
     //network_be_end(epd);
+
+    return 0;
+}
+
+int lua_flush(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        return 0;
+    }
+
+    int nargs = lua_gettop(L);
+    _lua_echo(epd, L, nargs);
+
+    if(epd->status != STEP_PROCESS) {
+        return 0;
+    }
+
+    if(epd->websocket || epd->status == STEP_SEND) {
+        return 0;
+    }
+
+    if(network_flush(epd) == 1) {
+        return lua_yield(L, 0);
+    }
 
     return 0;
 }

@@ -11,7 +11,7 @@ extern logf_t *ACCESS_LOG;
 extern int max_request_header;
 extern int max_request_body;
 
-static struct iovec send_iov[_MAX_IOV_COUNT];
+static struct iovec send_iov[_MAX_IOV_COUNT + 1];
 static int send_iov_count = 0;
 
 int network_send_header(epdata_t *epd, const char *header)
@@ -85,6 +85,10 @@ int network_send(epdata_t *epd, const char *data, int _len)
         return 0;
     }
 
+    if(epd->iov_buf_count + 1 >= _MAX_IOV_COUNT) {
+        return 0;
+    }
+
     if(epd->iov[1].iov_base == NULL) {
         epd->iov[1].iov_base = malloc(EP_D_BUF_SIZE);
 
@@ -109,8 +113,14 @@ int network_send(epdata_t *epd, const char *data, int _len)
         epd->iov[epd->iov_buf_count].iov_len = 0;
     }
 
-    if(epd->iov[epd->iov_buf_count].iov_len + len > EP_D_BUF_SIZE) {
-        len = EP_D_BUF_SIZE - epd->iov[epd->iov_buf_count].iov_len;
+    int buf_size = EP_D_BUF_SIZE;
+
+    if(epd->iov_buf_count == 1) {
+        buf_size = EP_D_BUF_SIZE - 8;//may be use 8 bytes at chunk mode
+    }
+
+    if(epd->iov[epd->iov_buf_count].iov_len + len > buf_size) {
+        len = buf_size - epd->iov[epd->iov_buf_count].iov_len;
 
         if(len > _len) {
             len = _len;
@@ -125,7 +135,7 @@ int network_send(epdata_t *epd, const char *data, int _len)
     }
 
     if(_len > 0) {
-        if(epd->iov_buf_count + 1 > _MAX_IOV_COUNT) {
+        if(epd->iov_buf_count + 1 >= _MAX_IOV_COUNT) {
             return 0;
         }
 
@@ -159,8 +169,6 @@ void free_epd_request(epdata_t *epd) /// for keepalive
         epd->iov[i].iov_base = NULL;
     }
 
-    epd->iov_buf_count = 0;
-
     epd->response_header_length = 0;
     epd->response_content_length = 0;
     epd->iov_buf_count = 0;
@@ -172,7 +180,6 @@ void free_epd_request(epdata_t *epd) /// for keepalive
     epd->_header_length = 0;
     epd->content_length = -1;
     epd->process_timeout = 0;
-    epd->iov_buf_count = 0;
 
     if(!epd->websocket) {
         se_be_read(epd->se_ptr, network_be_read);
@@ -211,6 +218,12 @@ void network_end_process(epdata_t *epd, int response_code)
     }
 
     epd->iov_buf_count = 0;
+
+    if(epd->zs) {
+        deflateEnd(epd->zs);
+        free(epd->zs);
+        epd->zs = NULL;
+    }
 
     long ttime = longtime();
 
@@ -308,8 +321,8 @@ void network_end_process(epdata_t *epd, int response_code)
                                   epd->header_len,
                                   epd->content_length > 0 ? epd->content_length : 0,
                                   response_code,
-                                  epd->response_content_length,
-                                  epd->response_content_length - epd->response_header_length,
+                                  epd->response_header_length,
+                                  epd->total_response_content_length - epd->response_header_length,
                                   epd->referer ? epd->referer : "-",
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
@@ -322,6 +335,176 @@ void network_end_process(epdata_t *epd, int response_code)
         close_client(epd);
         return;
     }
+}
+
+static void network_add_chunk_metas(epdata_t *epd)
+{
+    if(epd->iov[1].iov_base) {
+        char _buf[20] = {0};
+        _ultostr(&_buf, epd->response_content_length, 16);
+        strcat(_buf, "\r\n");
+        int _buf_len = strlen(_buf);
+
+        memmove(epd->iov[1].iov_base + _buf_len, epd->iov[1].iov_base, epd->iov[1].iov_len);
+        memcpy(epd->iov[1].iov_base, _buf, _buf_len);
+        epd->iov[1].iov_len += _buf_len;
+
+        int add_bytes = 2;
+
+        if(epd->header_sended != 1) {
+            add_bytes = 7;
+        }
+
+        if(epd->iov[epd->iov_buf_count].iov_len + add_bytes > EP_D_BUF_SIZE) {
+            epd->iov_buf_count ++;
+            epd->iov[epd->iov_buf_count].iov_base = malloc(EP_D_BUF_SIZE);
+            epd->iov[epd->iov_buf_count].iov_len = 0;
+
+        } else if(!epd->iov[epd->iov_buf_count].iov_base) {
+            epd->iov[epd->iov_buf_count].iov_base = malloc(EP_D_BUF_SIZE);
+            epd->iov[epd->iov_buf_count].iov_len = 0;
+        }
+
+        memcpy(epd->iov[epd->iov_buf_count].iov_base + epd->iov[epd->iov_buf_count].iov_len, "\r\n0\r\n\r\n", add_bytes);
+        epd->iov[epd->iov_buf_count].iov_len += add_bytes;
+
+        epd->response_content_length += add_bytes + _buf_len;
+
+    } else {
+        int add_bytes = 0;
+
+        if(epd->header_sended != 1) {
+            add_bytes = 5;
+        }
+
+        epd->iov[1].iov_base = malloc(EP_D_BUF_SIZE);
+        memcpy(epd->iov[1].iov_base, "0\r\n\r\n", add_bytes);
+        epd->iov[1].iov_len = add_bytes;
+        epd->iov_buf_count = 2;
+
+        epd->response_content_length += add_bytes;
+    }
+}
+
+static char *network_build_header_out(epdata_t *epd, int is_flush, int *_len)
+{
+    if(epd->response_content_length > 1024 && epd->iov[1].iov_base
+       && !is_binary(epd->iov[1].iov_base, epd->iov[1].iov_len)) {
+        char *p = NULL;
+
+        if(epd->headers) {
+            p = (char *)stristr(epd->headers, "Accept-Encoding", epd->header_len);
+        }
+
+        if(p) {
+            p += 16;
+            int i = 0, m = strlen(p);
+
+            for(; i < 20 && i < m; i++) {
+                if(p[i] == '\n') {
+                    break;
+                }
+            }
+
+            p[i] = '\0';
+
+            if(strstr(p, "deflate")) {
+                epd->content_gzip_or_deflated = 2;
+
+            } else if(strstr(p, "gzip")) {
+                epd->content_gzip_or_deflated = 1;
+            }
+
+            p[i] = '\n';
+        }
+    }
+
+    int len = 0;
+
+    if(epd->iov[0].iov_base == NULL) {
+        if(epd->content_gzip_or_deflated > 0) {
+            epd->response_content_length = gzip_iov(epd, is_flush, (struct iovec *) &epd->iov, epd->iov_buf_count,
+                                                    &epd->iov_buf_count);
+        }
+
+        len = sprintf(temp_buf,
+                      "HTTP/1.1 200 OK\r\nServer: aLiLua/%s (%s)\r\nContent-Type: text/html; charset=UTF-8\r\nConnection: %s\r\n%sContent-Length: %d\r\n\r\n",
+                      ALILUA_VERSION, hostname, (epd->keepalive == 1 ? "keep-alive" : "close"),
+                      (epd->content_gzip_or_deflated == 1 ? "Content-Encoding: gzip\r\n" : (epd->content_gzip_or_deflated == 2 ?
+                              "Content-Encoding: deflate\r\n" : "")),
+                      epd->response_content_length);
+        epd->response_header_length = len;
+
+    } else {
+        char *p = (char *)stristr(epd->iov[0].iov_base, "content-length:", epd->response_header_length);
+
+        if(p) {
+            if(is_flush == 0) {
+                p[0] = 'X';
+
+            } else {
+                epd->has_content_length_or_chunk_out = 1;
+            }
+
+        } else {
+            if(stristr(epd->iov[0].iov_base, "transfer-encoding:", epd->response_header_length)) {
+                epd->has_content_length_or_chunk_out = 2;
+            }
+        }
+
+        if(epd->content_gzip_or_deflated > 0) {
+            epd->response_content_length = gzip_iov(epd, is_flush, (struct iovec *) &epd->iov, epd->iov_buf_count,
+                                                    &epd->iov_buf_count);
+        }
+
+        if(epd->has_content_length_or_chunk_out == 2) {
+            network_add_chunk_metas(epd);
+        }
+
+        memcpy(temp_buf, epd->iov[0].iov_base, epd->response_header_length);
+
+        if((p = (char *)stristr(temp_buf, "Connection:", epd->response_header_length))) {
+            if(stristr(p, "close", epd->response_header_length - (p - temp_buf))) {
+                epd->keepalive = 0;
+            }
+
+            if(epd->has_content_length_or_chunk_out < 1) {
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname, now_gmt,
+                        (epd->content_gzip_or_deflated == 1 ? "Content-Encoding: gzip\r\n" : (epd->content_gzip_or_deflated == 2 ?
+                                "Content-Encoding: deflate\r\n" : "")),
+                        epd->response_content_length);
+
+            } else {
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nDate: %s\r\n%s\r\n", ALILUA_VERSION, hostname, now_gmt,
+                        (epd->content_gzip_or_deflated == 1 ? "Content-Encoding: gzip\r\n" : (epd->content_gzip_or_deflated == 2 ?
+                                "Content-Encoding: deflate\r\n" : "")));
+            }
+
+        } else {
+            if(epd->has_content_length_or_chunk_out < 1) {
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
+                        (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
+                        (epd->content_gzip_or_deflated == 1 ? "Content-Encoding: gzip\r\n" : (epd->content_gzip_or_deflated == 2 ?
+                                "Content-Encoding: deflate\r\n" : "")),
+                        epd->response_content_length);
+
+            } else {
+                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
+                        "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%s\r\n", ALILUA_VERSION, hostname,
+                        (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
+                        (epd->content_gzip_or_deflated == 1 ? "Content-Encoding: gzip\r\n" : (epd->content_gzip_or_deflated == 2 ?
+                                "Content-Encoding: deflate\r\n" : "")));
+            }
+        }
+
+        epd->response_header_length = len;
+    }
+
+    *_len = len;
+    return (char *)&temp_buf;
 }
 
 int network_be_read_on_clear(se_ptr_t *ptr);
@@ -346,144 +529,91 @@ void network_be_end(epdata_t *epd) // for lua function die
     epd->status = STEP_SEND;
     serv_status.sending_counts++;
 
-    if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL && epd->response_sendfile_fd == -1) {
-        serv_status.sending_counts--;
-        network_send_error(epd, 417, "");
-        return;
-
-    } else if(epd->response_sendfile_fd == -2) {
-        epd->response_sendfile_fd = -1;
-        serv_status.sending_counts--;
-        network_send_error(epd, 404, "File Not Found!");
-        return;
-
-    } else {
-        int gzip_data = 0;
-
-        //printf("%d %s\n", epd->response_content_length, epd->iov[1].iov_base);
-        if(epd->response_content_length > 1024 && epd->iov[1].iov_base &&
-           !is_binary(epd->iov[1].iov_base, epd->iov[1].iov_len)
-          ) {
-            char *p = NULL;
-
-            if(epd->headers) {
-                p = (char *)stristr(epd->headers, "Accept-Encoding", epd->header_len);
-            }
-
-            if(p) {
-                p += 16;
-                int i = 0, m = strlen(p);
-
-                for(; i < 20 && i < m; i++) {
-                    if(p[i] == '\n') {
-                        break;
-                    }
-                }
-
-                p[i] = '\0';
-
-                if(strstr(p, "deflate")) {
-                    gzip_data = 2;
-
-                } else if(strstr(p, "gzip")) {
-                    gzip_data = 1;
-                }
-
-                p[i] = '\n';
-            }
-        }
-
-        if(gzip_data > 0) {
-            epd->response_content_length = gzip_iov(gzip_data, (struct iovec *) &epd->iov, epd->iov_buf_count, &epd->iov_buf_count);
-        }
-
-        int len = 0;
-
-        if(epd->iov[0].iov_base == NULL) {
-            len = sprintf(temp_buf,
-                          "HTTP/1.1 200 OK\r\nServer: aLiLua/%s (%s)\r\nContent-Type: text/html; charset=UTF-8\r\nConnection: %s\r\n%sContent-Length: %d\r\n\r\n",
-                          ALILUA_VERSION, hostname, (epd->keepalive == 1 ? "keep-alive" : "close"),
-                          (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
-                          epd->response_content_length + (gzip_data == 1 ? 10 : 0));
-            epd->response_header_length = len;
-
-        } else {
-            memcpy(temp_buf, epd->iov[0].iov_base, epd->response_header_length);
-            char *p = NULL;
-
-            if((p = (char *)stristr(temp_buf, "Connection:", epd->response_header_length))) {
-                if(stristr(p, "close", epd->response_header_length - (p - temp_buf))) {
-                    epd->keepalive = 0;
-                }
-
-                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
-                        "Server: aLiLua/%s (%s)\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname, now_gmt,
-                        (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
-                        epd->response_content_length + (gzip_data == 1 ? 10 : 0));
-
-            } else {
-                len = epd->response_header_length + sprintf(temp_buf + epd->response_header_length,
-                        "Server: aLiLua/%s (%s)\r\nConnection: %s\r\nDate: %s\r\n%sContent-Length: %d\r\n\r\n", ALILUA_VERSION, hostname,
-                        (epd->keepalive == 1 ? "keep-alive" : "close"), now_gmt,
-                        (gzip_data == 1 ? "Content-Encoding: gzip\r\n" : (gzip_data == 2 ? "Content-Encoding: deflate\r\n" : "")),
-                        epd->response_content_length + (gzip_data == 1 ? 10 : 0));
-            }
-
-            epd->response_header_length = len;
-        }
-
-        if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
-            if(epd->iov[0].iov_base == NULL) {
-                epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
-
-                if(epd->iov[0].iov_base == NULL) {
-                    epd->keepalive = 0;
-                    network_end_process(epd, epd->se_ptr ? 0 : 499);
-                    serv_status.sending_counts--;
-                    return;
-                }
-            }
-
-            memcpy(epd->iov[0].iov_base, temp_buf, len);
-            epd->iov[0].iov_len = len;
-            epd->response_content_length += len;
-
-            if(gzip_data == 1) {
-                memcpy(epd->iov[0].iov_base + len, gzip_header, 10);
-                epd->iov[0].iov_len += 10;
-                epd->response_content_length += 10;
-            }
-
-            epd->iov_buf_count += 1;
-
-        } else {
-            network_raw_send(epd->fd, temp_buf, len);
-
-            if(gzip_data == 1) {
-                network_raw_send(epd->fd, gzip_header, 10);
-            }
-        }
-
-        if(epd->response_content_length == 0) {
-            epd->response_content_length = len;
-
-            if(!epd->iov[0].iov_base) {
-                epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
-                memcpy(epd->iov[0].iov_base, temp_buf, len);
-
-                if(epd->iov_buf_count < 1) {
-                    epd->iov_buf_count = 1;
-                }
-            }
-
-            network_end_process(epd, epd->se_ptr ? 0 : 499);
+    if(epd->header_sended == 0) {
+        if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL && epd->response_sendfile_fd == -1) {
             serv_status.sending_counts--;
+            network_send_error(epd, 417, "");
+            return;
+
+        } else if(epd->response_sendfile_fd == -2) {
+            epd->response_sendfile_fd = -1;
+            serv_status.sending_counts--;
+            network_send_error(epd, 404, "File Not Found!");
             return;
 
         } else {
-            epd->response_buf_sended = 0;
+            int len = 0;
+            char *out_headers = network_build_header_out(epd, 0, &len);
 
+            if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
+                if(epd->iov[0].iov_base == NULL) {
+                    epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+
+                    if(epd->iov[0].iov_base == NULL) {
+                        epd->keepalive = 0;
+                        network_end_process(epd, epd->se_ptr ? 0 : 499);
+                        serv_status.sending_counts--;
+                        return;
+                    }
+                }
+
+                memcpy(epd->iov[0].iov_base, out_headers, len);
+                epd->iov[0].iov_len = len;
+                epd->response_content_length += len;
+
+                epd->iov_buf_count += 1;
+
+            } else {
+                network_raw_send(epd->fd, out_headers, len);
+            }
+
+            if(epd->response_content_length == 0) {
+                epd->response_content_length = len;
+
+                if(!epd->iov[0].iov_base) {
+                    epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+                    memcpy(epd->iov[0].iov_base, out_headers, len);
+
+                    if(epd->iov_buf_count < 1) {
+                        epd->iov_buf_count = 1;
+                    }
+                }
+
+                network_end_process(epd, epd->se_ptr ? 0 : 499);
+                serv_status.sending_counts--;
+                return;
+
+            }
+
+            epd->response_buf_sended = 0;
         }
+
+    } else {
+        epd->header_sended = 2;
+
+        if(epd->content_gzip_or_deflated > 0) {
+            if(epd->iov[1].iov_base == NULL) {
+                epd->iov[1].iov_base = malloc(EP_D_BUF_SIZE);
+                epd->iov[1].iov_len = 0;
+            }
+
+            epd->response_content_length = gzip_iov(epd, 1, (struct iovec *) &epd->iov, epd->iov_buf_count,
+                                                    &epd->iov_buf_count);
+        }
+
+        if(epd->has_content_length_or_chunk_out == 2) {
+            network_add_chunk_metas(epd);
+        }
+
+        if(epd->iov[1].iov_base == NULL) {
+            serv_status.sending_counts--;
+            network_end_process(epd, 0);
+            return;
+
+        } else {
+            epd->iov_buf_count ++;
+        }
+
     }
 
     if(!epd->se_ptr) {
@@ -751,6 +881,7 @@ int network_be_read(se_ptr_t *ptr)
             epd->response_header_length = 0;
             epd->iov_buf_count = 0;
             epd->response_content_length = 0;
+            epd->total_response_content_length = 0;
 
             epd->response_sendfile_fd = -1;
 
@@ -815,6 +946,9 @@ int network_be_read(se_ptr_t *ptr)
                 epd->http_ver = NULL;
                 epd->referer = NULL;
                 epd->user_agent = NULL;
+                epd->header_sended = 0;
+                epd->has_content_length_or_chunk_out = 0;
+                epd->content_gzip_or_deflated = 0;
 
                 if(worker_process(epd, 0) != 0) {
                     close_client(epd);
@@ -856,14 +990,64 @@ int network_be_write(se_ptr_t *ptr)
 
         while(epd->response_buf_sended < epd->response_content_length && n >= 0) {
             if(epd->response_sendfile_fd == -1) {
-                epd->response_buf_sended += n;
+                if(n > 0) {
+                    epd->response_buf_sended += n;
+                    n = 0;
+                }
+
+                if(epd->response_buf_sended >= epd->response_content_length) {
+                    if(epd->header_sended == 5) {
+                        epd->header_sended = 1;
+                    }
+
+                    //printf("%ld sended %ld\n", epd->response_content_length, epd->response_buf_sended);
+                    serv_status.sending_counts--;
+                    epd->total_response_content_length += epd->response_content_length;
+
+                    if(epd->header_sended != 1) {
+                        network_end_process(epd, 0);
+
+                    } else {
+                        int i = 0;
+
+                        for(i = 1; i < epd->iov_buf_count; i++) {
+                            free(epd->iov[i].iov_base);
+                            epd->iov[i].iov_base = NULL;
+                        }
+
+                        epd->response_content_length = 0;
+                        epd->iov_buf_count = 1;
+                        epd->response_buf_sended = 0;
+                        epd->status = STEP_PROCESS;
+
+                        if(epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length) {
+                            // readed end
+                            se_be_read(epd->se_ptr, network_be_read_on_processing);
+
+                        } else {
+                            se_be_pri(epd->se_ptr, NULL); // be wait
+                        }
+
+                        lua_pushboolean(epd->L, 1);
+
+                        if(lua_resume(epd->L, 1) != LUA_YIELD) {
+                            if(lua_isstring(epd->L, -1)) {
+                                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                                lua_pop(epd->L, 1);
+                            }
+                        }
+                    }
+
+                    break;
+                }
+
                 {
                     int all = 0;
                     send_iov_count = 0;
                     size_t sended = 0;
                     size_t be_len = 0;
 
-                    for(j = 0; j < epd->iov_buf_count; j++) {
+                    for(j = ((epd->header_sended == 0 || epd->header_sended == 5) ? 0 : 1); j < epd->iov_buf_count; j++) {
                         sended += epd->iov[j].iov_len;
 
                         if(sended > epd->response_buf_sended) {
@@ -881,9 +1065,12 @@ int network_be_write(se_ptr_t *ptr)
                     if(k > 0) {
                         send_iov[0].iov_base += k;
                         send_iov[0].iov_len -= k;
+                        be_len -= k;
+                        k = 0;
                     }
 
                     send_iov[send_iov_count + 1].iov_base = NULL;
+                    send_iov[send_iov_count + 1].iov_len = 0;
 
                     if(be_len < 1) {
                         LOGF(ERR, "%d writev error! %d %ld", epd->fd, send_iov_count, be_len);
@@ -893,25 +1080,20 @@ int network_be_write(se_ptr_t *ptr)
                     n = writev(epd->fd, send_iov, send_iov_count);
                 }
 
-                if(epd->response_buf_sended + n >= epd->response_content_length) {
-                    //printf("%ld sended %ld\n", epd->response_content_length, epd->response_buf_sended+n);
-                    network_end_process(epd, 0);
-                    serv_status.sending_counts--;
-                    break;
-                }
-
             } else {
                 n = network_raw_sendfile(epd->fd, epd->response_sendfile_fd, &epd->response_buf_sended, epd->response_content_length);
 
                 if(epd->response_buf_sended >= epd->response_content_length) {
+                    epd->total_response_content_length += epd->response_content_length;
                     close(epd->response_sendfile_fd);
                     epd->response_sendfile_fd = -1;
 #ifdef linux
                     int set = 0;
                     setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
 #endif
-                    network_end_process(epd, 0);
                     serv_status.sending_counts--;
+                    network_end_process(epd, 0);
+
                     break;
                 }
             }
@@ -927,10 +1109,139 @@ int network_be_write(se_ptr_t *ptr)
                     close(epd->response_sendfile_fd);
                 }
 
-                network_end_process(epd, 0);
                 serv_status.sending_counts--;
+                epd->total_response_content_length += epd->response_content_length;
+
+                if(epd->header_sended != 1) {
+                    network_end_process(epd, 499);
+
+                } else {
+                    int i = 0;
+
+                    for(i = 1; i < epd->iov_buf_count; i++) {
+                        free(epd->iov[i].iov_base);
+                        epd->iov[i].iov_base = NULL;
+                    }
+
+                    epd->response_content_length = 0;
+                    epd->iov_buf_count = 1;
+                    epd->response_buf_sended = 0;
+                    epd->status = STEP_PROCESS;
+                    lua_pushboolean(epd->L, 0);
+                    lua_pushstring(epd->L, "client closed!");
+
+                    if(epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length) {
+                        // readed end
+                        se_be_read(epd->se_ptr, network_be_read_on_processing);
+
+                    } else {
+                        se_be_pri(epd->se_ptr, NULL); // be wait
+                    }
+
+                    if(lua_resume(epd->L, 2) != LUA_YIELD) {
+                        if(lua_isstring(epd->L, -1)) {
+                            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                            lua_pop(epd->L, 1);
+                        }
+                    }
+                }
+
                 break;
             }
         }
     }
+}
+
+int network_flush(epdata_t *epd)
+{
+    if(epd->header_sended == 0) {
+        char *p = (char *)stristr(epd->iov[0].iov_base, "content-length:", epd->response_header_length);
+
+        if(p) {
+            epd->has_content_length_or_chunk_out = 1;
+
+        } else if(!stristr(epd->iov[0].iov_base, "transfer-encoding:", epd->response_header_length)) {
+            network_send_header(epd, "Transfer-Encoding: chunked");
+            epd->has_content_length_or_chunk_out = 2;
+        }
+
+        epd->header_sended = 1;
+        int len = 0;
+        char *out_headers = network_build_header_out(epd, 0, &len);
+        epd->header_sended = 5;
+
+        if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
+            if(epd->iov[0].iov_base == NULL) {
+                epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+
+                if(epd->iov[0].iov_base == NULL) {
+                    epd->keepalive = 0;
+                    LOGF(ERR, "malloc error!");
+                    return 0;
+                }
+            }
+
+            memcpy(epd->iov[0].iov_base, out_headers, len);
+            epd->iov[0].iov_len = len;
+            epd->response_content_length += len;
+
+            epd->iov_buf_count += 1;
+
+        } else {
+            network_raw_send(epd->fd, out_headers, len);
+        }
+
+        if(epd->response_content_length == 0) {
+            epd->response_content_length = len;
+
+            if(!epd->iov[0].iov_base) {
+                epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+                memcpy(epd->iov[0].iov_base, out_headers, len);
+
+                if(epd->iov_buf_count < 1) {
+                    epd->iov_buf_count = 1;
+                }
+            }
+
+        }
+
+        epd->response_buf_sended = 0;
+
+        update_timeout(epd->timeout_ptr, STEP_SEND_TIMEOUT);
+
+        epd->status = STEP_SEND;
+        serv_status.sending_counts++;
+
+        se_be_write(epd->se_ptr, network_be_write);
+
+        return 1;
+
+    } else {
+        if(epd->iov[1].iov_base == NULL || epd->iov[1].iov_len < 1) {
+            return 0;
+        }
+
+        if(epd->content_gzip_or_deflated > 0 && epd->iov[1].iov_base != NULL) {
+            epd->response_content_length = gzip_iov(epd, 1, (struct iovec *) &epd->iov, epd->iov_buf_count,
+                                                    &epd->iov_buf_count);
+        }
+
+        if(epd->has_content_length_or_chunk_out == 2) {
+            network_add_chunk_metas(epd);
+        }
+
+        epd->iov_buf_count ++;
+
+        update_timeout(epd->timeout_ptr, STEP_SEND_TIMEOUT);
+
+        epd->status = STEP_SEND;
+        serv_status.sending_counts++;
+
+        se_be_write(epd->se_ptr, network_be_write);
+
+        return 1;
+
+    }
+
+    return 0;
 }

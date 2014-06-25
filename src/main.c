@@ -152,6 +152,7 @@ int main(int argc, const char **argv)
     lua_register(_L, "clear_header", lua_clear_header);
     lua_register(_L, "__end", lua_end);
     lua_register(_L, "die", lua_die);
+    lua_register(_L, "flush", lua_flush);
     lua_register(_L, "read_request_body", lua_read_request_body);
     lua_register(_L, "get_boundary", lua_f_get_boundary);
     lua_register(_L, "check_timeout", lua_check_timeout);

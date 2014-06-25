@@ -19,6 +19,12 @@ typedef struct _epdata_t {
     void *se_ptr;
     void *timeout_ptr;
     uint8_t status;
+    uint8_t header_sended;
+    uint8_t has_content_length_or_chunk_out;
+    uint8_t content_gzip_or_deflated;
+    unsigned zs_crc;
+    z_stream *zs;
+    unsigned long total_response_content_length;
     websocket_pt *websocket;
     lua_State *L;
     char *vhost_root;
@@ -27,8 +33,8 @@ typedef struct _epdata_t {
     int fd;
     unsigned char *headers;
     int header_len;
-    unsigned char *contents;
     int content_length;
+    unsigned char *contents;
 
     char *method;
     char *uri;
@@ -50,7 +56,7 @@ typedef struct _epdata_t {
 
     int response_sendfile_fd;
 
-#define _MAX_IOV_COUNT 241
+#define _MAX_IOV_COUNT 240
     struct iovec iov[_MAX_IOV_COUNT];
     int response_header_length;
     int iov_buf_count;
@@ -60,7 +66,7 @@ typedef struct _epdata_t {
     struct _epdata_t *job_next;
     struct _epdata_t *job_uper;
     struct in_addr client_addr;
-    char z[4]; /// align size to 4096
+    char z[12]; /// align size to 4096
 } epdata_t;
 
 typedef struct {
@@ -87,13 +93,13 @@ int network_send_header(epdata_t *epd, const char *header);
 int network_send(epdata_t *epd, const char *data, int _len);
 int network_sendfile(epdata_t *epd, const char *path);
 void network_be_end(epdata_t *epd);
+int network_flush(epdata_t *epd);
 
 /* network-util.c */
 void network_send_error(epdata_t *epd, int code, const char *msg);
 void sync_serv_status();
 void network_send_status(epdata_t *epd);
-static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
-int gzip_iov(int mode, struct iovec *iov, int iov_count, int *_diov_count);
+int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int *_diov_count);
 
 void init_lua_threads(lua_State *_L, int count);
 lua_State *new_lua_thread(lua_State *_L);
