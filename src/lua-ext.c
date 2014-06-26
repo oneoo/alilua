@@ -68,12 +68,13 @@ int lua_header(lua_State *L)
     int t = lua_type(L, 1);
     size_t dlen = 0;
     const char *data = NULL;
+    int ret = 0;
 
     if(t == LUA_TSTRING) {
         data = lua_tolstring(L, 1, &dlen);
 
         if(stristr(data, "content-length", dlen) != data) {
-            network_send_header(epd, data);
+            ret = network_send_header(epd, data);
         }
 
     } else if(t == LUA_TTABLE) {
@@ -87,7 +88,7 @@ int lua_header(lua_State *L)
                 data = lua_tolstring(L, -1, &dlen);
 
                 if(stristr(data, "content-length", dlen) != data) {
-                    network_send_header(epd, lua_tostring(L, -1));
+                    ret = network_send_header(epd, lua_tostring(L, -1));
                 }
             }
 
@@ -95,7 +96,19 @@ int lua_header(lua_State *L)
         }
     }
 
-    return 0;
+    if(ret == -1) {
+        lua_pushnil(L);
+        lua_pushstring(L, "respone header too big");
+        return 2;
+
+    } else if(ret == 0) {
+        lua_pushnil(L);
+
+    } else {
+        lua_pushboolean(L, 1);
+    }
+
+    return 1;
 }
 
 static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)

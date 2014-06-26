@@ -26,14 +26,19 @@ int network_send_header(epdata_t *epd, const char *header)
 
     int len = strlen(header);
 
-    if(len < 1 || epd->response_header_length + len + 200 > EP_D_BUF_SIZE) {
+    if(len < 1) {
         return 0;
+    }
+
+    if(epd->response_header_length + len + 200 > EP_D_BUF_SIZE) {
+        return -1;
     }
 
     if(epd->iov[0].iov_base == NULL) {
         epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
 
         if(epd->iov[0].iov_base == NULL) {
+            LOGF(ERR, "malloc error");
             return 0;
         }
 
