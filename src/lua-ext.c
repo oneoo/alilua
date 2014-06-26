@@ -756,4 +756,3 @@ int lua_f_readfile(lua_State *L)
 
     return 2;
 }
-

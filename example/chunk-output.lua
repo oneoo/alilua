@@ -7,6 +7,4 @@ echo(s)
 echo(s)
 flush(s)
 echo(s)
-echo('ccc')
-
-echo('eee')
+echo('end')

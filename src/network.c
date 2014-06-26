@@ -520,7 +520,7 @@ static char *network_build_header_out(epdata_t *epd, int is_flush, int *_len)
 int network_be_read_on_clear(se_ptr_t *ptr);
 void network_be_end(epdata_t *epd) // for lua function die
 {
-    if(epd->content_length > epd->data_len - epd->_header_length) {
+    if(epd->content_length > epd->data_len - epd->_header_length && epd->fd > -1) {
         serv_status.reading_counts++;
         se_be_read(epd->se_ptr, network_be_read_on_clear);
         return;
@@ -574,7 +574,6 @@ void network_be_end(epdata_t *epd) // for lua function die
                 epd->iov_buf_count += 1;
 
             } else {
-                LOGF(ALERT, "respone header too big");
                 network_raw_send(epd->fd, out_headers, len);
             }
 
@@ -1206,7 +1205,6 @@ int network_flush(epdata_t *epd)
             epd->iov_buf_count += 1;
 
         } else {
-            LOGF(ALERT, "respone header too big");
             network_raw_send(epd->fd, out_headers, len);
         }
 
