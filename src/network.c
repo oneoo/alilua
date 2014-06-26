@@ -17,7 +17,7 @@ static int send_iov_count = 0;
 int network_send_header(epdata_t *epd, const char *header)
 {
     if(epd->process_timeout == 1) {
-        return;
+        return 0;
     }
 
     if(!header) {
@@ -26,7 +26,7 @@ int network_send_header(epdata_t *epd, const char *header)
 
     int len = strlen(header);
 
-    if(len < 1 || epd->response_header_length + len + 2 > EP_D_BUF_SIZE) {
+    if(len < 1 || epd->response_header_length + len + 200 > EP_D_BUF_SIZE) {
         return 0;
     }
 
@@ -339,6 +339,11 @@ void network_end_process(epdata_t *epd, int response_code)
 
 static void network_add_chunk_metas(epdata_t *epd)
 {
+    if(!epd->http_ver || strlen(epd->http_ver) != 8 || epd->http_ver[7] != '1') {
+        epd->keepalive = 0;
+        return;
+    }
+
     if(epd->iov[1].iov_base) {
         char _buf[20] = {0};
         _ultostr(&_buf, epd->response_content_length, 16);
@@ -564,6 +569,7 @@ void network_be_end(epdata_t *epd) // for lua function die
                 epd->iov_buf_count += 1;
 
             } else {
+                LOGF(ALERT, "respone header too big");
                 network_raw_send(epd->fd, out_headers, len);
             }
 
@@ -1087,10 +1093,12 @@ int network_be_write(se_ptr_t *ptr)
                     epd->total_response_content_length += epd->response_content_length;
                     close(epd->response_sendfile_fd);
                     epd->response_sendfile_fd = -1;
-#ifdef linux
-                    int set = 0;
-                    setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
-#endif
+                    /*
+                    #ifdef linux
+                                        int set = 0;
+                                        setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
+                    #endif
+                    */
                     serv_status.sending_counts--;
                     network_end_process(epd, 0);
 
@@ -1102,10 +1110,12 @@ int network_be_write(se_ptr_t *ptr)
                 epd->keepalive = 0;
 
                 if(epd->response_sendfile_fd > -1) {
-#ifdef linux
-                    int set = 0;
-                    setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
-#endif
+                    /*
+                    #ifdef linux
+                                        int set = 0;
+                                        setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
+                    #endif
+                    */
                     close(epd->response_sendfile_fd);
                 }
 
@@ -1161,7 +1171,10 @@ int network_flush(epdata_t *epd)
             epd->has_content_length_or_chunk_out = 1;
 
         } else if(!stristr(epd->iov[0].iov_base, "transfer-encoding:", epd->response_header_length)) {
-            network_send_header(epd, "Transfer-Encoding: chunked");
+            if(epd->http_ver && strlen(epd->http_ver) == 8 && epd->http_ver[7] == '1') {
+                network_send_header(epd, "Transfer-Encoding: chunked");
+            }
+
             epd->has_content_length_or_chunk_out = 2;
         }
 
@@ -1188,6 +1201,7 @@ int network_flush(epdata_t *epd)
             epd->iov_buf_count += 1;
 
         } else {
+            LOGF(ALERT, "respone header too big");
             network_raw_send(epd->fd, out_headers, len);
         }
 

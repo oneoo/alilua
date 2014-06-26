@@ -549,6 +549,14 @@ int worker_process(epdata_t *epd, int thread_at)
 
 static void be_accept(int client_fd, struct in_addr client_addr)
 {
+    /* Disable the Nagle (TCP No Delay) algorithm */
+    int flag = 1;
+    int ret = setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
+
+    if(ret == -1) {
+        LOGF(ERR, "Couldn't setsockopt(TCP_NODELAY)");
+    }
+
     if(!set_nonblocking(client_fd, 1)) {
         close(client_fd);
         return;
