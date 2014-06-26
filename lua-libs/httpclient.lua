@@ -373,7 +373,8 @@ function httprequest(url, params)
 	--return bodys, headers, rterr
 	local res = {}
 	res.body = bodys
-	if headers then
+	res.status = 0
+	if headers and headers[1] then
 		local i = headers[1]:find(' ', 1, true)
 		if i then
 			local e = headers[1]:find(' ', i+1, true)
@@ -397,10 +398,10 @@ function httprequest(url, params)
 end
 
 local class_mt = {
-    -- to prevent use of casual module global variables
-    __newindex = function (table, key, val)
-        error('attempt to write to undeclared variable "' .. key .. '"')
-    end
+	-- to prevent use of casual module global variables
+	__newindex = function (table, key, val)
+		error('attempt to write to undeclared variable "' .. key .. '"')
+	end
 }
 
 setmetatable(_M, class_mt)
