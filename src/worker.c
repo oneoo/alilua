@@ -10,6 +10,9 @@ static int working_at_fd = 0;
 extern lua_State *_L;
 extern int lua_routed;
 
+extern EVP_PKEY *ssl_key;
+extern X509 *ssl_certificate;
+
 extern logf_t *ACCESS_LOG;
 
 static int exited = 0;
@@ -87,6 +90,17 @@ void close_client(epdata_t *epd)
 {
     if(!epd) {
         return;
+    }
+
+    if(epd->ssl_ctx && epd->fd > -1) {
+        if(!SSL_shutdown(epd->ssl)){
+            shutdown(epd->fd,1);
+            SSL_shutdown(epd->ssl);
+        }
+        SSL_CTX_free(epd->ssl_ctx);
+        SSL_free(epd->ssl);
+        epd->ssl_ctx = NULL;
+        epd->ssl = NULL;
     }
 
     if(epd->L) {
@@ -595,6 +609,116 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     serv_status.connect_counts++;
 }
 
+int _be_ssl_accept(se_ptr_t *ptr)
+{
+    epdata_t *epd = ptr->data;
+
+    if(!epd) {
+        return 0;
+    }
+
+    if(!epd->ssl) {
+        epd->ssl = SSL_new(epd->ssl_ctx);
+
+        if(epd->ssl == NULL) {
+            LOGF(ERR, "SSL_new");
+            close_client(epd);
+            return 0;
+        }
+
+        if(SSL_set_fd(epd->ssl, epd->fd) != 1) {
+            SSL_free(epd->ssl);
+            epd->ssl = NULL;
+            LOGF(ERR, "SSL_set_fd");
+            close_client(epd);
+            return 0;
+        }
+    }
+
+    int ret = SSL_accept(epd->ssl);
+
+    if(ret != 1) {
+        int ssl_err = SSL_get_error(epd->ssl, ret);
+
+        if(ssl_err != SSL_ERROR_WANT_READ && ssl_err != SSL_ERROR_WANT_WRITE) {
+            //LOGF(ERR, "ssl_accept is: %d", ssl_err);
+            close_client(epd);
+            return 0;
+        }
+
+        return 0;
+    }
+
+    se_be_read(epd->se_ptr, network_be_read);
+}
+
+static void be_ssl_accept(int client_fd, struct in_addr client_addr)
+{
+    if(!set_nonblocking(client_fd, 1)) {
+        close(client_fd);
+        return;
+    }
+
+    epdata_t *epd = malloc(sizeof(epdata_t));
+
+    if(!epd) {
+        close(client_fd);
+        return;
+    }
+
+    bzero(epd, sizeof(epdata_t));
+
+    epd->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+
+    if(NULL == epd->ssl_ctx) {
+        free(epd);
+        LOGF(ERR, "SSL_CTX_new");
+        close(client_fd);
+        return;
+    }
+
+    if(SSL_CTX_use_certificate(epd->ssl_ctx, ssl_certificate) != 1) {
+        SSL_CTX_free(epd->ssl_ctx);
+        LOGF(ERR, "SSL_CTX_use_certificate_file");
+        free(epd);
+        LOGF(ERR, "SSL_CTX_new");
+        close(client_fd);
+        return;
+    }
+
+    if(SSL_CTX_use_PrivateKey(epd->ssl_ctx, ssl_key) != 1) {
+        SSL_CTX_free(epd->ssl_ctx);
+        LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
+        free(epd);
+        LOGF(ERR, "SSL_CTX_new");
+        close(client_fd);
+        return;
+    }
+
+    epd->L = new_lua_thread(_L);
+
+    if(epd->L) {
+        lua_pushlightuserdata(epd->L, epd);
+        lua_setglobal(epd->L, "__epd__");
+    }
+
+    epd->fd = client_fd;
+    epd->client_addr = client_addr;
+    epd->status = STEP_WAIT;
+    epd->content_length = -1;
+    epd->keepalive = -1;
+    epd->response_sendfile_fd = -1;
+    //epd->start_time = longtime();
+
+    epd->se_ptr = se_add(loop_fd, client_fd, epd);
+    epd->timeout_ptr = add_timeout(epd, STEP_WAIT_TIMEOUT, timeout_handle);
+
+    se_be_read(epd->se_ptr, _be_ssl_accept);
+
+    serv_status.active_counts++;
+    serv_status.connect_counts++;
+}
+
 void worker_main(int _worker_n)
 {
     worker_n = _worker_n;
@@ -625,6 +749,10 @@ void worker_main(int _worker_n)
     loop_fd = se_create(4096);
     set_loop_fd(loop_fd, _worker_n); // for coevent module
     se_accept(loop_fd, server_fd, be_accept);
+
+    if(ssl_server_fd > 0) {
+        se_accept(loop_fd, ssl_server_fd, be_ssl_accept);
+    }
 
     se_loop(loop_fd, 10, other_simple_jobs); // loop
 

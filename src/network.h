@@ -67,10 +67,14 @@ typedef struct _epdata_t {
     struct _epdata_t *job_uper;
     struct in_addr client_addr;
 
+    SSL_CTX *ssl_ctx;
+    SSL *ssl;
+
     se_rw_proc_t next_proc;
     char *next_out;
     int next_out_len;
-    char z[20]; /// align size to 4096
+
+    char z[4]; /// align size to 4096
 } epdata_t;
 
 typedef struct {

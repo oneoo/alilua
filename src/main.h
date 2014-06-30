@@ -1,5 +1,7 @@
 #include "../coevent/merry/merry.h"
 #include <zlib.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "lua.h"
 #include "lualib.h"
 #include "lauxlib.h"

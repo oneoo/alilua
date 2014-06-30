@@ -14,6 +14,43 @@ extern int max_request_body;
 static struct iovec send_iov[_MAX_IOV_COUNT + 1];
 static int send_iov_count = 0;
 
+static int SSL_raw_send(SSL *ssl, const char *contents, int length)
+{
+    int len = 0, n = 0;
+    int a = 0;
+    int max = length;
+
+    while(1) {
+        if(len >= length || length < 1) {
+            break;
+        }
+
+        n = SSL_write(ssl, contents + len, length - len);
+
+        if(n < 0) {
+
+            int status = SSL_get_error(ssl, n);
+            errno = (status == SSL_ERROR_WANT_READ || status == SSL_ERROR_WANT_WRITE) ? EAGAIN : EPIPE;
+
+            if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                if(a++ > max) {
+                    return 0;
+                }
+
+                continue;
+
+            } else {
+                return -1;
+                break;
+            }
+        }
+
+        len += n;
+    }
+
+    return len;
+}
+
 int network_send_header(epdata_t *epd, const char *header)
 {
     if(epd->process_timeout == 1) {
@@ -574,7 +611,13 @@ void network_be_end(epdata_t *epd) // for lua function die
                 epd->iov_buf_count += 1;
 
             } else {
-                network_raw_send(epd->fd, out_headers, len);
+
+                if(!epd->ssl) {
+                    network_raw_send(epd->fd, out_headers, len);
+
+                } else {
+                    SSL_raw_send(epd->ssl, out_headers, len);
+                }
             }
 
             if(epd->response_content_length == 0) {
@@ -758,7 +801,9 @@ int network_be_read(se_ptr_t *ptr)
         }
     }
 
-    while((n = recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0)) >= 0) {
+//    while((n = recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0)) >= 0) {
+    while((n = (epd->ssl ? SSL_read(epd->ssl, epd->headers + epd->data_len, epd->buf_size - epd->data_len) :
+                recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0))) >= 0) {
         if(n == 0) {
             if(epd->data_len > 0) {
                 epd->keepalive = 0;
@@ -1017,6 +1062,78 @@ int network_be_read(se_ptr_t *ptr)
     return 1;
 }
 
+static void *mempcpy(void *to, const void *from, size_t size)
+{
+    memcpy(to, from, size);
+    return (char *)to + size;
+}
+
+#ifndef MIN
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+static int SSL_writev(SSL *ssl, const struct iovec *vector, int count)
+{
+
+    char *buffer;
+    register char *bp;
+    size_t bytes = 0, to_copy;
+    ssize_t bytes_written;
+    int i;
+
+    for(i = 0; i < count; ++i) {
+        if(SSIZE_MAX - bytes < vector[i].iov_len) {
+            return -1;
+        }
+
+        bytes += vector[i].iov_len;
+    }
+
+    if((buffer = (char *)malloc(bytes)) == NULL) {
+        return -1;
+    }
+
+    to_copy = bytes;
+    bp = buffer;
+
+    for(i = 0; i < count; ++i) {
+        size_t copy = MIN(vector[i].iov_len, to_copy);
+        bp = mempcpy((void *)bp, (void *)vector[i].iov_base, copy);
+        to_copy -= copy;
+
+        if(to_copy == 0) {
+            break;
+        }
+    }
+
+    bytes_written = SSL_write(ssl, buffer, bytes);
+
+    if(bytes_written < 0) {
+        int status = SSL_get_error(ssl, bytes_written);
+        errno = (status == SSL_ERROR_WANT_READ || status == SSL_ERROR_WANT_WRITE) ? EAGAIN : EPIPE;
+    }
+
+    free(buffer);
+    return bytes_written;
+}
+
+int SSL_sendfile(SSL *ssl, int fd, size_t size)
+{
+    size = (size > 61440) ? 61440 : size;
+    ssize_t rcnt = read(fd, temp_buf64k, size);
+
+    if(rcnt <= 0) {
+        return rcnt;
+    }
+
+    ssize_t tcnt = SSL_write(ssl, temp_buf64k, size);
+
+    if(tcnt > 0 && tcnt < rcnt) {   /* If sent < read readjust file position */
+        lseek(fd, tcnt - rcnt, SEEK_CUR);
+    }
+
+    return tcnt;
+}
+
 int network_be_write(se_ptr_t *ptr)
 {
     epdata_t *epd = ptr->data;
@@ -1134,11 +1251,26 @@ int network_be_write(se_ptr_t *ptr)
                         //exit ( 1 );
                     }
 
-                    n = writev(epd->fd, send_iov, send_iov_count);
+                    //n = writev(epd->fd, send_iov, send_iov_count);
+                    if(!epd->ssl) {
+                        n = writev(epd->fd, send_iov, send_iov_count);
+
+                    } else {
+                        n = SSL_writev(epd->ssl, send_iov, send_iov_count);
+                    }
                 }
 
             } else {
-                n = network_raw_sendfile(epd->fd, epd->response_sendfile_fd, &epd->response_buf_sended, epd->response_content_length);
+                if(!epd->ssl) {
+                    n = network_raw_sendfile(epd->fd, epd->response_sendfile_fd, &epd->response_buf_sended, epd->response_content_length);
+
+                } else {
+                    n = SSL_sendfile(epd->ssl, epd->response_sendfile_fd, epd->response_content_length);
+
+                    if(n > 0) {
+                        epd->response_buf_sended += n;
+                    }
+                }
 
                 if(epd->response_buf_sended >= epd->response_content_length) {
                     epd->total_response_content_length += epd->response_content_length;
@@ -1271,7 +1403,12 @@ int network_flush(epdata_t *epd)
             epd->iov_buf_count += 1;
 
         } else {
-            network_raw_send(epd->fd, out_headers, len);
+            if(!epd->ssl) {
+                network_raw_send(epd->fd, out_headers, len);
+
+            } else {
+                SSL_raw_send(epd->ssl, out_headers, len);
+            }
         }
 
         if(epd->response_content_length == 0) {

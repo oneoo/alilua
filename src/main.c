@@ -18,6 +18,9 @@ int YAC_CACHE_SIZE = (1024 * 1024 * 32);
 int YAC_CACHE_SIZE = (1024 * 1024 * 2);
 #endif
 
+EVP_PKEY *ssl_key = NULL;
+X509 *ssl_certificate = NULL;
+
 lua_State *_L;
 logf_t *ACCESS_LOG = NULL;
 static char tbuf_4096[4096];
@@ -224,6 +227,50 @@ int main(int argc, const char **argv)
         if(!ACCESS_LOG) {
             LOGF(ERR, "Couldn't open access log file: %s", getarg("accesslog"));
         }
+    }
+
+    if(getarg("ssl-bind") && getarg("ssl-cert") && getarg("ssl-key")) {
+        BIO *in = BIO_new(BIO_s_file_internal());
+
+        if(in == NULL) {
+            LOGF(ERR, "BIO_new error");
+            exit(1);
+        }
+
+        if(BIO_read_filename(in, getarg("ssl-cert")) <= 0) {
+            LOGF(ERR, "BIO_read_filename:%s error", getarg("ssl-cert"));
+            exit(1);
+        }
+
+        ssl_certificate = PEM_read_bio_X509(in, NULL, NULL, NULL);
+
+        if(ssl_certificate == NULL) {
+            LOGF(ERR, "PEM_read_bio_X509:%s error", getarg("ssl-cert"));
+            exit(1);
+        }
+
+        BIO_free(in);
+
+        in = BIO_new(BIO_s_file_internal());
+
+        if(in == NULL) {
+            LOGF(ERR, "BIO_new error");
+            exit(1);
+        }
+
+        if(BIO_read_filename(in, getarg("ssl-key")) <= 0) {
+            LOGF(ERR, "BIO_read_filename:%s error", getarg("ssl-key"));
+            exit(1);
+        }
+
+        ssl_key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+
+        if(ssl_key == NULL) {
+            LOGF(ERR, "PEM_read_bio_PrivateKey:%s error", getarg("ssl-key"));
+            exit(1);
+        }
+
+        BIO_free(in);
     }
 
     _shm_serv_status = shm_malloc(sizeof(serv_status_t));
