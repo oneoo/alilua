@@ -56,6 +56,9 @@ CommandLine Options
 ======
 
 	--bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80
+    --ssl-bind           ssl server bind.
+    --ssl-cert           ssl Certificate file path
+    --ssl-key            ssl PrivateKey file
 	--daemon             process mode
 	--process=number     workers
 	--log=file path      access log
@@ -74,7 +77,7 @@ Limits
 
 Response header length < 3KB
 
-Response body length < 900KB
+~~Response body length < 900KB~~(no limited, large body can be auto flush)
 
 Documents
 ======

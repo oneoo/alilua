@@ -43,13 +43,22 @@ static void help()
 {
     bind_port = default_port;
     printf("--------------------------------------------------------------------------------\n"
-           "This is %s/%s , Usage:\n"
+           "           _________________                \n"
+           "    ______ ___  /___(_)__  / ____  _______ _\n"
+           "    _  __ `/_  / __  /__  /  _  / / /  __ `/\n"
+           "    / /_/ /_  /___  / _  /___/ /_/ // /_/ / \n"
+           "    \\__,_/ /_____/_/  /_____/\\__,_/ \\__,_/  \n"
+           "--------------------------------------------------------------------------------\n"
+           "This is %s/%s, Usage:\n"
            "\n"
            "    %s [options]\n"
            "\n"
            "Options:\n"
            "\n"
            "    --bind=127.0.0.1:%d\tserver bind. or --bind=%d = 0.0.0.0:19827\n"
+           "    --ssl-bind\t\t\tssl server bind.\n"
+           "    --ssl-cert\t\t\tssl Certificate file path\n"
+           "    --ssl-key\t\t\tssl PrivateKey file\n"
            "    --log=path[,level] \t\tlog file path, level=1-6\n"
            "    --accesslog=path \t\taccess log file path\n"
            "    --process=n \t\tstart how many workers\n"
@@ -60,7 +69,7 @@ static void help()
            "    --daemon[=n]     \t\tdaemon mode(start n workers)\n"
            "  \n"
            "--------------------------------------------------------------------------------\n",
-           program_name, "0.1", program_name, bind_port, bind_port
+           "aLiLua", ALILUA_VERSION, program_name, bind_port, bind_port
           );
 }
 
