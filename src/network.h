@@ -56,7 +56,7 @@ typedef struct _epdata_t {
 
     int response_sendfile_fd;
 
-#define _MAX_IOV_COUNT 240
+#define _MAX_IOV_COUNT 238
     struct iovec iov[_MAX_IOV_COUNT];
     int response_header_length;
     int iov_buf_count;
@@ -66,7 +66,11 @@ typedef struct _epdata_t {
     struct _epdata_t *job_next;
     struct _epdata_t *job_uper;
     struct in_addr client_addr;
-    char z[12]; /// align size to 4096
+
+    se_rw_proc_t next_proc;
+    char *next_out;
+    int next_out_len;
+    char z[20]; /// align size to 4096
 } epdata_t;
 
 typedef struct {

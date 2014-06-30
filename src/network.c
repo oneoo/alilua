@@ -87,18 +87,18 @@ int network_send(epdata_t *epd, const char *data, int _len)
     }
 
     if(_len < 1 || epd->response_sendfile_fd > -1) {
-        return 0;
+        return -1;
     }
 
     if(epd->iov_buf_count + 1 >= _MAX_IOV_COUNT) {
-        return 0;
+        return _len;
     }
 
     if(epd->iov[1].iov_base == NULL) {
         epd->iov[1].iov_base = malloc(EP_D_BUF_SIZE);
 
         if(epd->iov[1].iov_base == NULL) {
-            return 0;
+            return -2;
         }
 
         epd->iov_buf_count = 1;
@@ -112,7 +112,7 @@ int network_send(epdata_t *epd, const char *data, int _len)
         epd->iov[epd->iov_buf_count].iov_base = malloc(EP_D_BUF_SIZE);
 
         if(epd->iov[epd->iov_buf_count].iov_base == NULL) {
-            return 0;
+            return -2;
         }
 
         epd->iov[epd->iov_buf_count].iov_len = 0;
@@ -141,7 +141,7 @@ int network_send(epdata_t *epd, const char *data, int _len)
 
     if(_len > 0) {
         if(epd->iov_buf_count + 1 >= _MAX_IOV_COUNT) {
-            return 0;
+            return _len;
         }
 
         epd->iov_buf_count += 1;
@@ -152,7 +152,7 @@ int network_send(epdata_t *epd, const char *data, int _len)
         return network_send(epd, data + len, _len);
     }
 
-    return 1;
+    return _len;
 }
 
 void free_epd_request(epdata_t *epd) /// for keepalive
@@ -574,8 +574,7 @@ void network_be_end(epdata_t *epd) // for lua function die
                 epd->iov_buf_count += 1;
 
             } else {
-                LOGF(ERR,"respone header too big");
-                //network_raw_send(epd->fd, out_headers, len);
+                network_raw_send(epd->fd, out_headers, len);
             }
 
             if(epd->response_content_length == 0) {
@@ -698,6 +697,23 @@ int network_be_read_on_clear(se_ptr_t *ptr)
         epd->fd = -1;
         serv_status.reading_counts--;
         network_be_end(epd);
+    }
+}
+
+int send_100_continue_then_process(se_ptr_t *ptr)
+{
+    epdata_t *epd = ptr->data;
+    epd->next_proc = NULL;
+
+    epd->iov[0].iov_len = 0;
+    epd->response_content_length = 0;
+    epd->iov_buf_count = 0;
+
+    epd->status = STEP_PROCESS;
+
+    if(worker_process(epd, 0) != 0) {
+        close_client(epd);
+        epd = NULL;
     }
 }
 
@@ -848,10 +864,6 @@ int network_be_read(se_ptr_t *ptr)
                             }
 
                         }
-
-                        if(stristr(epd->headers + (epd->_header_length - 60), "100-continue", epd->_header_length)) {
-                            network_raw_send(epd->fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
-                        }
                     }
                 }
             }
@@ -961,9 +973,33 @@ int network_be_read(se_ptr_t *ptr)
                 epd->has_content_length_or_chunk_out = 0;
                 epd->content_gzip_or_deflated = 0;
 
-                if(worker_process(epd, 0) != 0) {
-                    close_client(epd);
-                    epd = NULL;
+                if(stristr(epd->headers + (epd->_header_length - 60), "100-continue", epd->_header_length)) {
+                    //network_raw_send(epd->fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
+                    if(epd->iov[0].iov_base == NULL) {
+                        epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
+
+                        if(epd->iov[0].iov_base == NULL) {
+                            LOGF(ERR, "malloc error");
+                            return 0;
+                        }
+
+                        memcpy(epd->iov[0].iov_base, "HTTP/1.1 100 Continue\r\n\r\n", 25);
+                        epd->iov[0].iov_len = 25;
+                        epd->response_content_length = 25;
+                        epd->response_buf_sended = 0;
+                        epd->iov_buf_count = 1;
+                    }
+
+                    epd->next_proc = send_100_continue_then_process;
+                    epd->status = STEP_SEND;
+                    se_be_write(epd->se_ptr, network_be_write);
+
+                } else {
+
+                    if(worker_process(epd, 0) != 0) {
+                        close_client(epd);
+                        epd = NULL;
+                    }
                 }
             }
 
@@ -1016,7 +1052,12 @@ int network_be_write(se_ptr_t *ptr)
                     epd->total_response_content_length += epd->response_content_length;
 
                     if(epd->header_sended != 1) {
-                        network_end_process(epd, 0);
+                        if(epd->next_proc) {
+                            epd->next_proc(ptr);
+
+                        } else {
+                            network_end_process(epd, 0);
+                        }
 
                     } else {
                         int i = 0;
@@ -1030,6 +1071,11 @@ int network_be_write(se_ptr_t *ptr)
                         epd->iov_buf_count = 1;
                         epd->response_buf_sended = 0;
                         epd->status = STEP_PROCESS;
+
+                        if(epd->next_proc) {
+                            epd->next_proc(ptr);
+                            return 0;
+                        }
 
                         if(epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length) {
                             // readed end
@@ -1105,7 +1151,13 @@ int network_be_write(se_ptr_t *ptr)
                     #endif
                     */
                     serv_status.sending_counts--;
-                    network_end_process(epd, 0);
+
+                    if(epd->next_proc) {
+                        epd->next_proc(ptr);
+
+                    } else {
+                        network_end_process(epd, 0);
+                    }
 
                     break;
                 }
@@ -1128,7 +1180,12 @@ int network_be_write(se_ptr_t *ptr)
                 epd->total_response_content_length += epd->response_content_length;
 
                 if(epd->header_sended != 1) {
-                    network_end_process(epd, 499);
+                    if(epd->next_proc) {
+                        epd->next_proc(ptr);
+
+                    } else {
+                        network_end_process(epd, 499);
+                    }
 
                 } else {
                     int i = 0;
@@ -1142,6 +1199,12 @@ int network_be_write(se_ptr_t *ptr)
                     epd->iov_buf_count = 1;
                     epd->response_buf_sended = 0;
                     epd->status = STEP_PROCESS;
+
+                    if(epd->next_proc) {
+                        epd->next_proc(ptr);
+                        return 0;
+                    }
+
                     lua_pushboolean(epd->L, 0);
                     lua_pushstring(epd->L, "client closed!");
 
@@ -1165,6 +1228,8 @@ int network_be_write(se_ptr_t *ptr)
             }
         }
     }
+
+    return 0;
 }
 
 int network_flush(epdata_t *epd)
@@ -1206,8 +1271,7 @@ int network_flush(epdata_t *epd)
             epd->iov_buf_count += 1;
 
         } else {
-            LOGF(ERR,"respone header too big");
-            //network_raw_send(epd->fd, out_headers, len);
+            network_raw_send(epd->fd, out_headers, len);
         }
 
         if(epd->response_content_length == 0) {

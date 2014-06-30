@@ -65,7 +65,7 @@ int lua_header(lua_State *L)
         return 0;
     }
 
-    if(epd->header_sended != 0){
+    if(epd->header_sended != 0) {
         lua_pushnil(L);
         lua_pushstring(L, "respone header has been sended");
         return 2;
@@ -117,9 +117,43 @@ int lua_header(lua_State *L)
     return 1;
 }
 
-static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)
+static int send_then_send(se_ptr_t *ptr)
+{
+    epdata_t *epd = ptr->data;
+    epd->next_proc = NULL;
+
+    char *buf = epd->next_out;
+    int len = epd->next_out_len;
+    int have = network_send(epd, buf, len);
+
+    if(have > 0) {
+        epd->next_out = malloc(have);
+
+        if(epd->next_out) {
+            memcpy(epd->next_out, buf + (len - have), have);
+            free(buf);
+            epd->next_proc = send_then_send;
+            return 0;
+        }
+    }
+
+    free(buf);
+
+    if(lua_resume(epd->L, 0) != LUA_YIELD) {
+        if(lua_isstring(epd->L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+            lua_pop(epd->L, 1);
+        }
+    }
+
+    return 0;
+}
+
+static int _lua_echo(epdata_t *epd, lua_State *L, int nargs, int can_yield)
 {
     size_t len = 0;
+    int have = 0;
+    epd->next_out = NULL;
 
     if(lua_istable(L, 1)) {
         len = lua_calc_strlen_in_table(L, 1, 2, 0 /* strict */);
@@ -138,12 +172,23 @@ static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)
             }
 
             lua_copy_str_in_table(L, 1, buf);
-            network_send(epd, buf, len);
+            have = network_send(epd, buf, len);
+
+            if(have > 0 && can_yield) {
+                epd->next_out = malloc(have);
+                memcpy(epd->next_out, buf + (len - have), have);
+            }
+
             free(buf);
 
         } else {
             lua_copy_str_in_table(L, 1, buf);
-            network_send(epd, buf, len);
+            have = network_send(epd, buf, len);
+
+            if(have > 0 && can_yield) {
+                epd->next_out = malloc(have);
+                memcpy(epd->next_out, buf + (len - have), have);
+            }
         }
 
     } else {
@@ -152,19 +197,49 @@ static void _lua_echo(epdata_t *epd, lua_State *L, int nargs)
 
         for(i = 1; i <= nargs; i++) {
             if(lua_isboolean(L, i)) {
+                char *buf = NULL;
+
                 if(lua_toboolean(L, i)) {
-                    network_send(epd, "true", 4);
+                    buf = "true";
+                    have = network_send(epd, buf, 4);
 
                 } else {
-                    network_send(epd, "false", 5);
+                    buf = "false";
+                    have = network_send(epd, buf, 5);
+                }
+
+                if(have > 0 && can_yield) {
+                    epd->next_out = malloc(have);
+                    memcpy(epd->next_out, buf + (len - have), have);
                 }
 
             } else {
                 data = lua_tolstring(L, i, &len);
-                network_send(epd, data, len);
+                have = network_send(epd, data, len);
+
+                if(have > 0 && can_yield) {
+                    epd->next_out = malloc(have);
+                    memcpy(epd->next_out, data + (len - have), have);
+                }
             }
         }
     }
+
+    if(epd->next_out) {
+        if(network_flush(epd) == 1) {
+            epd->next_proc = send_then_send;
+            epd->next_out_len = have;
+            return have;
+
+        } else {
+            LOGF(ERR, "flush error");
+            free(epd->next_out);
+            epd->next_out = NULL;
+            return 0;
+        }
+    }
+
+    return 0;
 }
 
 int lua_echo(lua_State *L)
@@ -190,7 +265,9 @@ int lua_echo(lua_State *L)
         return 0;
     }
 
-    _lua_echo(epd, L, nargs);
+    if(_lua_echo(epd, L, nargs, 1)) {
+        return lua_yield(L, 0);
+    }
 
     if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
         epd->keepalive = 0;
@@ -278,7 +355,7 @@ int lua_clear_header(lua_State *L)
         return 2;
     }
 
-    if(epd->header_sended != 0){
+    if(epd->header_sended != 0) {
         lua_pushnil(L);
         lua_pushstring(L, "respone header has been sended");
         return 2;
@@ -402,7 +479,7 @@ int lua_sendfile(lua_State *L)
         return 2;
     }
 
-    if(epd->header_sended != 0){
+    if(epd->header_sended != 0) {
         lua_pushnil(L);
         lua_pushstring(L, "respone header has been sended");
         return 2;
@@ -463,7 +540,8 @@ int lua_die(lua_State *L)
     }
 
     int nargs = lua_gettop(L);
-    _lua_echo(epd, L, nargs);
+
+    _lua_echo(epd, L, nargs, 0);
 
     if(epd->status != STEP_PROCESS) {
         return 0;
@@ -490,7 +568,7 @@ int lua_flush(lua_State *L)
     }
 
     int nargs = lua_gettop(L);
-    _lua_echo(epd, L, nargs);
+    _lua_echo(epd, L, nargs, 0);
 
     if(epd->status != STEP_PROCESS) {
         return 0;
