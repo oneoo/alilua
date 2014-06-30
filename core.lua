@@ -223,8 +223,11 @@ end
 function read_post_field_data()
     local r = nil
     local d = read_post_field_chunk()
+    local nr = 1
 
     while d do
+        nr = nr + 1
+        if nr > 10000 then return end
         r = (r and r or '') .. d
         d = read_post_field_chunk()
     end
@@ -242,7 +245,7 @@ function next_post_field()
             if headers['content-type'] and headers['content-type']:find('x-www-form-urlencoded',1,1) then
                 local p
                 if e then p = #__body_buf else
-                    p = __body_buf:find('&', 1,1)
+                    p = __body_buf:find('&',1,1)
                     if p then p = p -1 end
                 end
                 if p then

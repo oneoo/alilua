@@ -9,6 +9,7 @@ int lua_clear_header(lua_State *L);
 int lua_sendfile(lua_State *L);
 int lua_end(lua_State *L);
 int lua_die(lua_State *L);
+int lua_flush(lua_State *L);
 int lua_read_request_body(lua_State *L);
 int lua_f_get_boundary(lua_State *L);
 int lua_f_random_string(lua_State *L);
