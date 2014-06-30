@@ -555,7 +555,7 @@ void network_be_end(epdata_t *epd) // for lua function die
             int len = 0;
             char *out_headers = network_build_header_out(epd, 0, &len);
 
-            if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
+            if(len < EP_D_BUF_SIZE && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
                 if(epd->iov[0].iov_base == NULL) {
                     epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
 
@@ -574,7 +574,8 @@ void network_be_end(epdata_t *epd) // for lua function die
                 epd->iov_buf_count += 1;
 
             } else {
-                network_raw_send(epd->fd, out_headers, len);
+                LOGF(ERR,"respone header too big");
+                //network_raw_send(epd->fd, out_headers, len);
             }
 
             if(epd->response_content_length == 0) {
@@ -1099,8 +1100,8 @@ int network_be_write(se_ptr_t *ptr)
                     epd->response_sendfile_fd = -1;
                     /*
                     #ifdef linux
-                                        int set = 0;
-                                        setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
+                    int set = 0;
+                    setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
                     #endif
                     */
                     serv_status.sending_counts--;
@@ -1116,8 +1117,8 @@ int network_be_write(se_ptr_t *ptr)
                 if(epd->response_sendfile_fd > -1) {
                     /*
                     #ifdef linux
-                                        int set = 0;
-                                        setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
+                    int set = 0;
+                    setsockopt(epd->fd, IPPROTO_TCP, TCP_CORK, &set, sizeof(int));
                     #endif
                     */
                     close(epd->response_sendfile_fd);
@@ -1187,7 +1188,7 @@ int network_flush(epdata_t *epd)
         char *out_headers = network_build_header_out(epd, 0, &len);
         epd->header_sended = 5;
 
-        if(len < 4000 && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
+        if(len < EP_D_BUF_SIZE && epd->response_sendfile_fd <= -1 && epd->iov[1].iov_base && epd->iov[1].iov_len > 0) {
             if(epd->iov[0].iov_base == NULL) {
                 epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
 
@@ -1205,7 +1206,8 @@ int network_flush(epdata_t *epd)
             epd->iov_buf_count += 1;
 
         } else {
-            network_raw_send(epd->fd, out_headers, len);
+            LOGF(ERR,"respone header too big");
+            //network_raw_send(epd->fd, out_headers, len);
         }
 
         if(epd->response_content_length == 0) {
