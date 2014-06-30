@@ -65,6 +65,12 @@ int lua_header(lua_State *L)
         return 0;
     }
 
+    if(epd->header_sended != 0){
+        lua_pushnil(L);
+        lua_pushstring(L, "respone header has been sended");
+        return 2;
+    }
+
     int t = lua_type(L, 1);
     size_t dlen = 0;
     const char *data = NULL;
@@ -272,6 +278,12 @@ int lua_clear_header(lua_State *L)
         return 2;
     }
 
+    if(epd->header_sended != 0){
+        lua_pushnil(L);
+        lua_pushstring(L, "respone header has been sended");
+        return 2;
+    }
+
     epd->response_header_length = 0;
     free(epd->iov[0].iov_base);
     epd->iov[0].iov_base = NULL;
@@ -387,6 +399,12 @@ int lua_sendfile(lua_State *L)
     if(!epd) {
         lua_pushnil(L);
         lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    if(epd->header_sended != 0){
+        lua_pushnil(L);
+        lua_pushstring(L, "respone header has been sended");
         return 2;
     }
 
