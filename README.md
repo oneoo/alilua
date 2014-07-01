@@ -58,7 +58,8 @@ CommandLine Options
 	--bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80
     --ssl-bind           ssl server bind.
     --ssl-cert           ssl Certificate file path
-    --ssl-key            ssl PrivateKey file
+    --ssl-key            ssl PrivateKey file path
+    --ssl-ca             ssl Client Certificate file path
 	--daemon             process mode
 	--process=number     workers
 	--log=file path      access log

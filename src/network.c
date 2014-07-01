@@ -369,7 +369,7 @@ void network_end_process(epdata_t *epd, int response_code)
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
 
-    if(epd->keepalive == 1 && !check_process_for_exit()) {
+    if(epd->keepalive == 1 && !check_process_for_exit()) { // && epd->se_ptr
         update_timeout(epd->timeout_ptr, STEP_WAIT_TIMEOUT);
         free_epd_request(epd);
 
@@ -697,6 +697,7 @@ int network_be_read_on_processing(se_ptr_t *ptr)
         epd->se_ptr = NULL;
         close(epd->fd);
         epd->fd = -1;
+        epd->keepalive = 0;
     }
 
     return 1;
@@ -719,6 +720,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
             epd->se_ptr = NULL;
             close(epd->fd);
             epd->fd = -1;
+            epd->keepalive = 0;
             serv_status.reading_counts--;
             network_be_end(epd);
             return 0;
@@ -738,6 +740,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
         epd->se_ptr = NULL;
         close(epd->fd);
         epd->fd = -1;
+        epd->keepalive = 0;
         serv_status.reading_counts--;
         network_be_end(epd);
     }

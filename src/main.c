@@ -20,6 +20,7 @@ int YAC_CACHE_SIZE = (1024 * 1024 * 2);
 
 EVP_PKEY *ssl_key = NULL;
 X509 *ssl_certificate = NULL;
+int ssl_epd_idx = -1;
 
 lua_State *_L;
 logf_t *ACCESS_LOG = NULL;
@@ -58,7 +59,8 @@ static void help()
            "    --bind=127.0.0.1:%d\tserver bind. or --bind=%d = 0.0.0.0:19827\n"
            "    --ssl-bind\t\t\tssl server bind.\n"
            "    --ssl-cert\t\t\tssl Certificate file path\n"
-           "    --ssl-key\t\t\tssl PrivateKey file\n"
+           "    --ssl-key\t\t\tssl PrivateKey file path\n"
+           "    --ssl-ca\t\t\tssl Client Certificate file path\n"
            "    --log=path[,level] \t\tlog file path, level=1-6\n"
            "    --accesslog=path \t\taccess log file path\n"
            "    --process=n \t\tstart how many workers\n"
@@ -210,15 +212,18 @@ int main(int argc, const char **argv)
                   "    local mt = { " \
                   "        __index = function (t1,k) " \
                   "            local p = math_floor(time()/ttl) " \
-                  "            if t[(p-2)%3+1].__has then t[(p-2)%3+1] = {} end " \
+                  "            local p1=(p-2)%3+1 " \
+                  "            if t[p1].__has then t[p1] = {} end " \
                   "            return t[(p)%3+1][k] " \
                   "        end, " \
                   "        __newindex = function (t1,k,v) " \
                   "            local p = math_floor(time()/ttl) " \
-                  "            t[p%3+1][k] = v " \
-                  "            t[(p+1)%3+1][k] = v " \
-                  "            t[(p+1)%3+1].__has = 1 " \
-                  "            t[p%3+1].__has = 1 " \
+                  "            local p1=p%3+1 " \
+                  "            local p2=(p+1)%3+1 " \
+                  "            t[p1][k] = v " \
+                  "            t[p2][k] = v " \
+                  "            t[p1].__has = 1 " \
+                  "            t[p2].__has = 1 " \
                   "        end " \
                   "    } " \
                   "    setmetatable(proxy, mt) " \
@@ -279,7 +284,33 @@ int main(int argc, const char **argv)
             exit(1);
         }
 
+        if(getarg("ssl-ca")) {
+            ssl_epd_idx = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+
+            if(ssl_epd_idx == -1) {
+                LOGF(ERR, "SSL_get_ex_new_index Failed");
+                exit(1);
+            }
+        }
+
         BIO_free(in);
+        SSL_CTX *ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+
+        if(ssl_ctx) {
+            if(SSL_CTX_use_certificate(ssl_ctx, ssl_certificate) != 1) {
+                SSL_CTX_free(ssl_ctx);
+                LOGF(ERR, "SSL_CTX_use_certificate_file");
+                exit(1);
+            }
+
+            if(SSL_CTX_use_PrivateKey(ssl_ctx, ssl_key) != 1) {
+                SSL_CTX_free(ssl_ctx);
+                LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
+                exit(1);
+            }
+
+            SSL_CTX_free(ssl_ctx);
+        }
     }
 
     _shm_serv_status = shm_malloc(sizeof(serv_status_t));

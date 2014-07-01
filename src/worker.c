@@ -12,6 +12,7 @@ extern int lua_routed;
 
 extern EVP_PKEY *ssl_key;
 extern X509 *ssl_certificate;
+extern int ssl_epd_idx;
 
 extern logf_t *ACCESS_LOG;
 
@@ -93,12 +94,13 @@ void close_client(epdata_t *epd)
     }
 
     if(epd->ssl_ctx && epd->fd > -1) {
-        if(!SSL_shutdown(epd->ssl)){
-            shutdown(epd->fd,1);
+        if(!SSL_shutdown(epd->ssl)) {
+            shutdown(epd->fd, 1);
             SSL_shutdown(epd->ssl);
         }
-        SSL_CTX_free(epd->ssl_ctx);
+
         SSL_free(epd->ssl);
+        SSL_CTX_free(epd->ssl_ctx);
         epd->ssl_ctx = NULL;
         epd->ssl = NULL;
     }
@@ -165,6 +167,11 @@ int worker_process(epdata_t *epd, int thread_at)
     working_at_fd = epd->fd;
     //network_send_error(epd, 503, "Lua Error: main function not found !!!");return 0;
     //network_send(epd, "aaa", 3);network_be_end(epd);return 0;
+
+    if(epd->ssl && !epd->ssl_verify) {
+        network_send_error(epd, 400, "No required SSL certificate was send");
+        return 0;
+    }
 
     lua_State *L = epd->L;
 
@@ -633,6 +640,18 @@ int _be_ssl_accept(se_ptr_t *ptr)
             close_client(epd);
             return 0;
         }
+
+        if(ssl_epd_idx > -1) {
+            if(SSL_set_ex_data(epd->ssl, ssl_epd_idx, epd) != 1) {
+                SSL_CTX_free(epd->ssl);
+                SSL_CTX_free(epd->ssl_ctx);
+                LOGF(ERR, "SSL_set_ex_data");
+                int fd = epd->fd;
+                free(epd);
+                close(fd);
+                return;
+            }
+        }
     }
 
     int ret = SSL_accept(epd->ssl);
@@ -650,6 +669,14 @@ int _be_ssl_accept(se_ptr_t *ptr)
     }
 
     se_be_read(epd->se_ptr, network_be_read);
+}
+
+static int verify_callback(int ok, X509_STORE_CTX *store)
+{
+    epdata_t *epd = SSL_get_ex_data(X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx()), ssl_epd_idx);
+    epd->ssl_verify = ok;
+
+    return ok;
 }
 
 static void be_ssl_accept(int client_fd, struct in_addr client_addr)
@@ -677,11 +704,12 @@ static void be_ssl_accept(int client_fd, struct in_addr client_addr)
         return;
     }
 
+    SSL_CTX_set_options(epd->ssl_ctx, SSL_OP_ALL);
+
     if(SSL_CTX_use_certificate(epd->ssl_ctx, ssl_certificate) != 1) {
         SSL_CTX_free(epd->ssl_ctx);
         LOGF(ERR, "SSL_CTX_use_certificate_file");
         free(epd);
-        LOGF(ERR, "SSL_CTX_new");
         close(client_fd);
         return;
     }
@@ -690,9 +718,24 @@ static void be_ssl_accept(int client_fd, struct in_addr client_addr)
         SSL_CTX_free(epd->ssl_ctx);
         LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
         free(epd);
-        LOGF(ERR, "SSL_CTX_new");
         close(client_fd);
         return;
+    }
+
+    if(ssl_epd_idx > -1) {
+        if(SSL_CTX_load_verify_locations(epd->ssl_ctx, getarg("ssl-ca"), NULL) != 1) {
+            SSL_CTX_free(epd->ssl_ctx);
+            LOGF(ERR, "SSL_CTX_load_verify_locations");
+            free(epd);
+            close(client_fd);
+            return;
+        }
+
+        SSL_CTX_set_verify(epd->ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verify_callback);
+        SSL_CTX_set_verify_depth(epd->ssl_ctx, 4);
+
+    } else {
+        epd->ssl_verify = 1;
     }
 
     epd->L = new_lua_thread(_L);

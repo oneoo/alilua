@@ -74,7 +74,9 @@ typedef struct _epdata_t {
     char *next_out;
     int next_out_len;
 
-    char z[4]; /// align size to 4096
+    int ssl_verify;
+
+    //char z[4]; /// align size to 4096
 } epdata_t;
 
 typedef struct {
