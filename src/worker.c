@@ -640,7 +640,7 @@ int _be_ssl_accept(se_ptr_t *ptr)
 
         if(ssl_epd_idx > -1) {
             if(SSL_set_ex_data(epd->ssl, ssl_epd_idx, epd) != 1) {
-                SSL_CTX_free(epd->ssl);
+                SSL_free(epd->ssl);
                 LOGF(ERR, "SSL_set_ex_data");
                 int fd = epd->fd;
                 free(epd);
