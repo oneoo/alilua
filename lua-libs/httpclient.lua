@@ -46,7 +46,12 @@ function httprequest(url, params)
 	local chunk, protocol = url:match('^(([a-z0-9+]+)://)')
 	url = url:sub((chunk and #chunk or 0) + 1)
 
-	local sock, err = tcp(protocol=='https')
+	local sock, err
+	if not params['ssl_cert'] then
+		sock, err = tcp(protocol=='https')
+	else
+		sock, err = tcp(params['ssl_cert'], params['ssl_key'], params['ssl_pw'])
+	end
 	if not sock then
 		return nil, err
 	end
