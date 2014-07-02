@@ -10,8 +10,7 @@ static int working_at_fd = 0;
 extern lua_State *_L;
 extern int lua_routed;
 
-extern EVP_PKEY *ssl_key;
-extern X509 *ssl_certificate;
+extern SSL_CTX *ssl_ctx;
 extern int ssl_epd_idx;
 
 extern logf_t *ACCESS_LOG;
@@ -93,15 +92,13 @@ void close_client(epdata_t *epd)
         return;
     }
 
-    if(epd->ssl_ctx && epd->fd > -1) {
+    if(epd->ssl && epd->fd > -1) {
         if(!SSL_shutdown(epd->ssl)) {
             shutdown(epd->fd, 1);
             SSL_shutdown(epd->ssl);
         }
 
         SSL_free(epd->ssl);
-        SSL_CTX_free(epd->ssl_ctx);
-        epd->ssl_ctx = NULL;
         epd->ssl = NULL;
     }
 
@@ -625,7 +622,7 @@ int _be_ssl_accept(se_ptr_t *ptr)
     }
 
     if(!epd->ssl) {
-        epd->ssl = SSL_new(epd->ssl_ctx);
+        epd->ssl = SSL_new(ssl_ctx);
 
         if(epd->ssl == NULL) {
             LOGF(ERR, "SSL_new");
@@ -644,7 +641,6 @@ int _be_ssl_accept(se_ptr_t *ptr)
         if(ssl_epd_idx > -1) {
             if(SSL_set_ex_data(epd->ssl, ssl_epd_idx, epd) != 1) {
                 SSL_CTX_free(epd->ssl);
-                SSL_CTX_free(epd->ssl_ctx);
                 LOGF(ERR, "SSL_set_ex_data");
                 int fd = epd->fd;
                 free(epd);
@@ -660,7 +656,6 @@ int _be_ssl_accept(se_ptr_t *ptr)
         int ssl_err = SSL_get_error(epd->ssl, ret);
 
         if(ssl_err != SSL_ERROR_WANT_READ && ssl_err != SSL_ERROR_WANT_WRITE) {
-            //LOGF(ERR, "ssl_accept is: %d", ssl_err);
             close_client(epd);
             return 0;
         }
@@ -669,14 +664,6 @@ int _be_ssl_accept(se_ptr_t *ptr)
     }
 
     se_be_read(epd->se_ptr, network_be_read);
-}
-
-static int verify_callback(int ok, X509_STORE_CTX *store)
-{
-    epdata_t *epd = SSL_get_ex_data(X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx()), ssl_epd_idx);
-    epd->ssl_verify = ok;
-
-    return ok;
 }
 
 static void be_ssl_accept(int client_fd, struct in_addr client_addr)
@@ -695,46 +682,14 @@ static void be_ssl_accept(int client_fd, struct in_addr client_addr)
 
     bzero(epd, sizeof(epdata_t));
 
-    epd->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-
-    if(NULL == epd->ssl_ctx) {
+    if(NULL == ssl_ctx) {
         free(epd);
-        LOGF(ERR, "SSL_CTX_new");
+        LOGF(ERR, "ssl ctx not inited");
         close(client_fd);
         return;
     }
 
-    SSL_CTX_set_options(epd->ssl_ctx, SSL_OP_ALL);
-
-    if(SSL_CTX_use_certificate(epd->ssl_ctx, ssl_certificate) != 1) {
-        SSL_CTX_free(epd->ssl_ctx);
-        LOGF(ERR, "SSL_CTX_use_certificate_file");
-        free(epd);
-        close(client_fd);
-        return;
-    }
-
-    if(SSL_CTX_use_PrivateKey(epd->ssl_ctx, ssl_key) != 1) {
-        SSL_CTX_free(epd->ssl_ctx);
-        LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
-        free(epd);
-        close(client_fd);
-        return;
-    }
-
-    if(ssl_epd_idx > -1) {
-        if(SSL_CTX_load_verify_locations(epd->ssl_ctx, getarg("ssl-ca"), NULL) != 1) {
-            SSL_CTX_free(epd->ssl_ctx);
-            LOGF(ERR, "SSL_CTX_load_verify_locations");
-            free(epd);
-            close(client_fd);
-            return;
-        }
-
-        SSL_CTX_set_verify(epd->ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verify_callback);
-        SSL_CTX_set_verify_depth(epd->ssl_ctx, 4);
-
-    } else {
+    if(ssl_epd_idx == -1) {
         epd->ssl_verify = 1;
     }
 

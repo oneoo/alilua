@@ -18,13 +18,12 @@ int YAC_CACHE_SIZE = (1024 * 1024 * 32);
 int YAC_CACHE_SIZE = (1024 * 1024 * 2);
 #endif
 
-EVP_PKEY *ssl_key = NULL;
-X509 *ssl_certificate = NULL;
+SSL_CTX *ssl_ctx = NULL;
 int ssl_epd_idx = -1;
 
-lua_State *_L;
+lua_State *_L = NULL;
 logf_t *ACCESS_LOG = NULL;
-static char tbuf_4096[4096];
+static char tbuf_4096[4096] = {0};
 
 extern int code_cache_ttl;
 
@@ -38,6 +37,14 @@ static void on_master_exit_handler()
 static void master_main()
 {
     //printf("master\n");
+}
+
+static int verify_callback(int ok, X509_STORE_CTX *store)
+{
+    epdata_t *epd = SSL_get_ex_data(X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx()), ssl_epd_idx);
+    epd->ssl_verify = ok;
+
+    return ok;
 }
 
 static void help()
@@ -244,45 +251,26 @@ int main(int argc, const char **argv)
     }
 
     if(getarg("ssl-bind") && getarg("ssl-cert") && getarg("ssl-key")) {
-        BIO *in = BIO_new(BIO_s_file_internal());
+        ssl_ctx = SSL_CTX_new(SSLv23_server_method());
 
-        if(in == NULL) {
-            LOGF(ERR, "BIO_new error");
+        if(!ssl_ctx) {
+            LOGF(ERR, "SSL_CTX_new Failed");
             exit(1);
         }
 
-        if(BIO_read_filename(in, getarg("ssl-cert")) <= 0) {
-            LOGF(ERR, "BIO_read_filename:%s error", getarg("ssl-cert"));
+        if(SSL_CTX_use_certificate_file(ssl_ctx, getarg("ssl-cert"), SSL_FILETYPE_PEM) != 1) {
+            SSL_CTX_free(ssl_ctx);
+            LOGF(ERR, "SSL_CTX_use_certificate_file");
             exit(1);
         }
 
-        ssl_certificate = PEM_read_bio_X509(in, NULL, NULL, NULL);
-
-        if(ssl_certificate == NULL) {
-            LOGF(ERR, "PEM_read_bio_X509:%s error", getarg("ssl-cert"));
+        if(SSL_CTX_use_PrivateKey_file(ssl_ctx, getarg("ssl-key"), SSL_FILETYPE_PEM) != 1) {
+            SSL_CTX_free(ssl_ctx);
+            LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
             exit(1);
         }
 
-        BIO_free(in);
-
-        in = BIO_new(BIO_s_file_internal());
-
-        if(in == NULL) {
-            LOGF(ERR, "BIO_new error");
-            exit(1);
-        }
-
-        if(BIO_read_filename(in, getarg("ssl-key")) <= 0) {
-            LOGF(ERR, "BIO_read_filename:%s error", getarg("ssl-key"));
-            exit(1);
-        }
-
-        ssl_key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
-
-        if(ssl_key == NULL) {
-            LOGF(ERR, "PEM_read_bio_PrivateKey:%s error", getarg("ssl-key"));
-            exit(1);
-        }
+        SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
 
         if(getarg("ssl-ca")) {
             ssl_epd_idx = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
@@ -291,25 +279,17 @@ int main(int argc, const char **argv)
                 LOGF(ERR, "SSL_get_ex_new_index Failed");
                 exit(1);
             }
-        }
 
-        BIO_free(in);
-        SSL_CTX *ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-
-        if(ssl_ctx) {
-            if(SSL_CTX_use_certificate(ssl_ctx, ssl_certificate) != 1) {
+            if(SSL_CTX_load_verify_locations(ssl_ctx, getarg("ssl-ca"), NULL) != 1) {
                 SSL_CTX_free(ssl_ctx);
-                LOGF(ERR, "SSL_CTX_use_certificate_file");
+                LOGF(ERR, "SSL_CTX_load_verify_locations");
                 exit(1);
-            }
 
-            if(SSL_CTX_use_PrivateKey(ssl_ctx, ssl_key) != 1) {
-                SSL_CTX_free(ssl_ctx);
-                LOGF(ERR, "SSL_CTX_use_PrivateKey_file");
-                exit(1);
-            }
+            } else {
+                SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verify_callback);
+                SSL_CTX_set_verify_depth(ssl_ctx, 4);
 
-            SSL_CTX_free(ssl_ctx);
+            }
         }
     }
 
