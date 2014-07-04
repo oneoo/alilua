@@ -4,6 +4,7 @@ aLiLua
 A epoll/kqueue based web server, inculded lua/coevent support (support Linux/MacOS/BSD platform)
 
  - WebSockets supported
+ - HTTPS supported
 
 Install
 -------
@@ -51,7 +52,8 @@ Options
 	--ssl-ca             ssl Client Certificate file path
 	--daemon             process mode
 	--process=number     workers
-	--log=file path      access log
+	--log=file path      error log
+	--accesslog=...      access log
 	--host-route         Special route file path
 	--app				 Special app file path
 	--code-cache-ttl     number of code cache time(sec) default 60 sec

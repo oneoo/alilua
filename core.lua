@@ -335,7 +335,7 @@ __yield = coroutine.yield
 _print = print
 print = echo
 
-function setcookie(name, value, expire, path, domain)
+function setcookie(name, value, expire, path, domain, secure, httponly)
     if not name then return false end
     if not value then value = '' expire = time()-86400 end
     local cookie = 'Set-Cookie: '..escape_uri(name)..'='..escape_uri(value)..';'

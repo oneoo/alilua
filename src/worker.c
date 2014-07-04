@@ -645,7 +645,7 @@ int _be_ssl_accept(se_ptr_t *ptr)
                 int fd = epd->fd;
                 free(epd);
                 close(fd);
-                return;
+                return 0;
             }
         }
     }
