@@ -241,12 +241,16 @@ function httprequest(url, params)
 						bytes, err = sock:send(buf)
 
 						if err then
+							v.file:close()
+							v.file = nil
 							sock:close()
 							return nil, err
 						end
+
 						buf = v.file:read(4096)
 					end
 					v.file:close()
+					v.file = nil
 				end
 			end
 			i = i+1
@@ -260,6 +264,10 @@ function httprequest(url, params)
 	local headers = {}
 	local i = 1
 	local line,err = sock:receive('*l')
+	if err then
+		sock:close()
+		return nil, err
+	end
 	local get_body_length = 0
 
 	while not err do
@@ -287,8 +295,13 @@ function httprequest(url, params)
 		headers[i] = line
 		i = i+1
 		line,err = sock:receive('*l')
+		if err then
+			sock:close()
+			return nil, err
+		end
 	end
 
+	err = nil
 	local bodys = {}
 	local body_length = 0
 	local buf
@@ -300,7 +313,8 @@ function httprequest(url, params)
 		while not err do
 			line,err = sock:receive('*l')
 			if err then
-				break
+				sock:close()
+				return nil, err
 			end
 			
 			local read_length = tonumber(line, 16)
@@ -321,9 +335,19 @@ function httprequest(url, params)
 			end
 			
 			line,err = sock:receive('*l')
+
+			if err then
+				sock:close()
+				return nil, err
+			end
 		end
+		if err then rterr = err end
 	elseif get_body_length > 0 then
 		local buf,err = sock:receive(get_body_length < 4096 and get_body_length or 4096)
+		if err then
+			sock:close()
+			return nil, err
+		end
 		i = 1
 		while not err do
 			bodys[i] = buf
@@ -337,6 +361,10 @@ function httprequest(url, params)
 
 			buf,err = sock:receive(get_body_length-body_length < 4096 and get_body_length-body_length or 4096)
 			
+			if err then
+				sock:close()
+				return nil, err
+			end
 		end
 
 		if err then

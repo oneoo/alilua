@@ -209,6 +209,7 @@ void free_epd_request(epdata_t *epd) /// for keepalive
     for(i = 0; i < epd->iov_buf_count; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
+        epd->iov[i].iov_len = 0;
     }
 
     epd->response_header_length = 0;
@@ -578,12 +579,14 @@ void network_be_end(epdata_t *epd) // for lua function die
 
     if(epd->header_sended == 0) {
         if(epd->iov[0].iov_base == NULL && epd->iov[1].iov_base == NULL && epd->response_sendfile_fd == -1) {
+            epd->status = STEP_PROCESS;
             serv_status.sending_counts--;
             network_send_error(epd, 417, "");
             return;
 
         } else if(epd->response_sendfile_fd == -2) {
             epd->response_sendfile_fd = -1;
+            epd->status = STEP_PROCESS;
             serv_status.sending_counts--;
             network_send_error(epd, 404, "File Not Found!");
             return;
@@ -598,8 +601,9 @@ void network_be_end(epdata_t *epd) // for lua function die
 
                     if(epd->iov[0].iov_base == NULL) {
                         epd->keepalive = 0;
-                        network_end_process(epd, epd->se_ptr ? 0 : 499);
+                        epd->status = STEP_PROCESS;
                         serv_status.sending_counts--;
+                        network_end_process(epd, epd->se_ptr ? 0 : 499);
                         return;
                     }
                 }
@@ -632,8 +636,9 @@ void network_be_end(epdata_t *epd) // for lua function die
                     }
                 }
 
-                network_end_process(epd, epd->se_ptr ? 0 : 499);
                 serv_status.sending_counts--;
+                epd->status = STEP_PROCESS;
+                network_end_process(epd, epd->se_ptr ? 0 : 499);
                 return;
 
             }
@@ -660,6 +665,7 @@ void network_be_end(epdata_t *epd) // for lua function die
 
         if(epd->iov[1].iov_base == NULL) {
             serv_status.sending_counts--;
+            epd->status = STEP_PROCESS;
             network_end_process(epd, 0);
             return;
 
@@ -671,6 +677,8 @@ void network_be_end(epdata_t *epd) // for lua function die
 
     if(!epd->se_ptr) {
         //client is gone
+        serv_status.sending_counts--;
+        epd->status = STEP_PROCESS;
         network_end_process(epd, 499);
         return;
     }
@@ -729,6 +737,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
         epd->data_len += n;
 
         if(epd->content_length <= epd->data_len - epd->_header_length) {
+            se_be_pri(epd->se_ptr, NULL);
             serv_status.reading_counts--;
             network_be_end(epd);
             return 0;
@@ -756,6 +765,7 @@ int send_100_continue_then_process(se_ptr_t *ptr)
     epd->iov_buf_count = 0;
 
     epd->status = STEP_PROCESS;
+    serv_status.sending_counts--;
 
     if(worker_process(epd, 0) != 0) {
         close_client(epd);
@@ -953,48 +963,7 @@ int network_be_read(se_ptr_t *ptr)
             epd->iov_buf_count = 0;
             epd->response_content_length = 0;
             epd->total_response_content_length = 0;
-
             epd->response_sendfile_fd = -1;
-
-            /// output server status !!!!!!!!!!
-            {
-                int i, len;
-                char *uri = NULL;
-                uri = epd->headers;
-
-                for(i = 0; i < epd->header_len; i++)
-                    if(uri[i] == ' ') {
-                        break;
-                    }
-
-                for(; i < epd->header_len; i++)
-                    if(uri[i] != ' ') {
-                        break;
-                    }
-
-                uri = epd->headers + i;
-                len = strlen(uri);
-
-                for(i = 0; i < len; i++) {
-                    if(uri[i] == '\r' || uri[i] == '\n' || uri[i] == ' ') {
-                        break;
-                    }
-                }
-
-                if(i > 11 && strncmp("/serv-status", uri, i) == 0) {
-                    epd->process_timeout = 0;
-
-                    epd->iov[0].iov_base = NULL;
-                    epd->iov[0].iov_len = 0;
-                    epd->iov[1].iov_base = NULL;
-                    epd->iov[1].iov_len = 0;
-
-                    network_send_status(epd);
-                    serv_status.reading_counts--;
-                    break;
-                }
-            }
-            /// end.
 
             if(epd->content_length < 1 || epd->content_length <= epd->data_len - epd->_header_length) {
                 // readed end
@@ -1040,10 +1009,49 @@ int network_be_read(se_ptr_t *ptr)
 
                     epd->next_proc = send_100_continue_then_process;
                     epd->status = STEP_SEND;
+                    serv_status.sending_counts++;
                     se_be_write(epd->se_ptr, network_be_write);
 
                 } else {
+                    /// output server status !!!!!!!!!!
+                    {
+                        int i, len;
+                        char *uri = NULL;
+                        uri = epd->headers;
 
+                        for(i = 0; i < epd->header_len; i++)
+                            if(uri[i] == ' ') {
+                                break;
+                            }
+
+                        for(; i < epd->header_len; i++)
+                            if(uri[i] != ' ') {
+                                break;
+                            }
+
+                        uri = epd->headers + i;
+                        len = strlen(uri);
+
+                        for(i = 0; i < len; i++) {
+                            if(uri[i] == '\r' || uri[i] == '\n' || uri[i] == ' ') {
+                                break;
+                            }
+                        }
+
+                        if(i > 11 && strncmp("/serv-status", uri, 12) == 0) {
+                            epd->process_timeout = 0;
+
+                            epd->iov[0].iov_base = NULL;
+                            epd->iov[0].iov_len = 0;
+                            epd->iov[1].iov_base = NULL;
+                            epd->iov[1].iov_len = 0;
+
+                            network_send_status(epd);
+                            break;
+                        }
+                    }
+
+                    /// end.
                     if(worker_process(epd, 0) != 0) {
                         close_client(epd);
                         epd = NULL;
@@ -1169,6 +1177,7 @@ int network_be_write(se_ptr_t *ptr)
 
                     //printf("%ld sended %ld\n", epd->response_content_length, epd->response_buf_sended);
                     serv_status.sending_counts--;
+                    epd->status = STEP_PROCESS;
                     epd->total_response_content_length += epd->response_content_length;
 
                     if(epd->header_sended != 1) {
@@ -1185,6 +1194,7 @@ int network_be_write(se_ptr_t *ptr)
                         for(i = 1; i < epd->iov_buf_count; i++) {
                             free(epd->iov[i].iov_base);
                             epd->iov[i].iov_base = NULL;
+                            epd->iov[i].iov_len = 0;
                         }
 
                         epd->response_content_length = 0;
@@ -1286,6 +1296,7 @@ int network_be_write(se_ptr_t *ptr)
                     #endif
                     */
                     serv_status.sending_counts--;
+                    epd->status = STEP_PROCESS;
 
                     if(epd->next_proc) {
                         epd->next_proc(ptr);
@@ -1312,6 +1323,7 @@ int network_be_write(se_ptr_t *ptr)
                 }
 
                 serv_status.sending_counts--;
+                epd->status = STEP_PROCESS;
                 epd->total_response_content_length += epd->response_content_length;
 
                 if(epd->header_sended != 1) {
@@ -1328,6 +1340,7 @@ int network_be_write(se_ptr_t *ptr)
                     for(i = 1; i < epd->iov_buf_count; i++) {
                         free(epd->iov[i].iov_base);
                         epd->iov[i].iov_base = NULL;
+                        epd->iov[i].iov_len = 0;
                     }
 
                     epd->response_content_length = 0;
@@ -1370,6 +1383,12 @@ int network_be_write(se_ptr_t *ptr)
 int network_flush(epdata_t *epd)
 {
     if(epd->header_sended == 0) {
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+        }
+
+        epd->status = STEP_SEND;
+        serv_status.sending_counts++;
         char *p = (char *)stristr(epd->iov[0].iov_base, "content-length:", epd->response_header_length);
 
         if(p) {
@@ -1395,6 +1414,8 @@ int network_flush(epdata_t *epd)
                 if(epd->iov[0].iov_base == NULL) {
                     epd->keepalive = 0;
                     LOGF(ERR, "malloc error!");
+                    epd->status = STEP_PROCESS;
+                    serv_status.sending_counts--;
                     return 0;
                 }
             }
@@ -1432,9 +1453,6 @@ int network_flush(epdata_t *epd)
 
         update_timeout(epd->timeout_ptr, STEP_SEND_TIMEOUT);
 
-        epd->status = STEP_SEND;
-        serv_status.sending_counts++;
-
         se_be_write(epd->se_ptr, network_be_write);
 
         return 1;
@@ -1443,6 +1461,13 @@ int network_flush(epdata_t *epd)
         if(epd->iov[1].iov_base == NULL || epd->iov[1].iov_len < 1) {
             return 0;
         }
+
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+        }
+
+        epd->status = STEP_SEND;
+        serv_status.sending_counts++;
 
         if(epd->content_gzip_or_deflated > 0 && epd->iov[1].iov_base != NULL) {
             epd->response_content_length = gzip_iov(epd, 1, (struct iovec *) &epd->iov, epd->iov_buf_count,
@@ -1456,9 +1481,6 @@ int network_flush(epdata_t *epd)
         epd->iov_buf_count ++;
 
         update_timeout(epd->timeout_ptr, STEP_SEND_TIMEOUT);
-
-        epd->status = STEP_SEND;
-        serv_status.sending_counts++;
 
         se_be_write(epd->se_ptr, network_be_write);
 
