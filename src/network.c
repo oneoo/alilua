@@ -1256,9 +1256,6 @@ int network_be_write(se_ptr_t *ptr)
                         k = 0;
                     }
 
-                    send_iov[send_iov_count + 1].iov_base = NULL;
-                    send_iov[send_iov_count + 1].iov_len = 0;
-
                     if(be_len < 1) {
                         LOGF(ERR, "%d writev error! %d %ld", epd->fd, send_iov_count, be_len);
                         //exit ( 1 );

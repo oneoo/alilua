@@ -124,6 +124,8 @@ static int send_then_send(se_ptr_t *ptr)
 
     char *buf = epd->next_out;
     int len = epd->next_out_len;
+    epd->next_out_len = 0;
+
     int have = network_send(epd, buf, len);
 
     if(have > 0) {
@@ -132,7 +134,19 @@ static int send_then_send(se_ptr_t *ptr)
         if(epd->next_out) {
             memcpy(epd->next_out, buf + (len - have), have);
             free(buf);
-            epd->next_proc = send_then_send;
+
+            if(network_flush(epd) == 1) {
+                epd->next_proc = send_then_send;
+                epd->next_out_len = have;
+                return have;
+
+            } else {
+                LOGF(ERR, "flush error");
+                free(epd->next_out);
+                epd->next_out = NULL;
+                return 0;
+            }
+
             return 0;
         }
     }

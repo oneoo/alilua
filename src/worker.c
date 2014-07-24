@@ -321,6 +321,11 @@ int worker_process(epdata_t *epd, int thread_at)
     char *client_ip = inet_ntoa(epd->client_addr);
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
+    int l = sizeof(struct sockaddr);
+    struct sockaddr_in addr;
+    getsockname(epd->fd, (struct sockaddr *) &addr, &l);
+    lua_pushstring(L, inet_ntoa(addr.sin_addr));
+    lua_setfield(L, -2, "server-addr");
 
     lua_setglobal(L, "headers");
 
@@ -404,126 +409,6 @@ int worker_process(epdata_t *epd, int thread_at)
     }
 
     lua_setglobal(L, "_COOKIE");
-    /*
-        lua_newtable(L); /// _POST
-
-        if(is_form_post == 1
-           && epd->contents) { /// parse post conents text=aa+bb&text2=%E4%B8%AD%E6%96%87+aa
-            pt1 = epd->contents;
-
-            while(t1 = strtok_r(pt1, "&", &pt1)) {
-                t2 = strtok_r(t1, "=", &t1);
-                t3 = strtok_r(t1, "=", &t1);
-
-                if(t2 && t3 && strlen(t2) > 0 && strlen(t3) > 0) {
-                    size_t len, dlen;
-                    u_char *p;
-                    u_char *src, *dst;
-                    len = strlen(t3);
-                    p = malloc(len);
-                    p[0] = '\0';
-                    dst = p;
-                    dlen = urldecode(&dst, (u_char **)&t3, len, RAW_UNESCAPE_URL);
-                    lua_pushlstring(L, (char *) p, dlen);
-                    free(p);
-                    //lua_pushstring(L, t3);
-                    lua_setfield(L, -2, t2);
-                }
-            }
-
-        } else if(epd->boundary) { /// parse boundary body
-            int blen = strlen(epd->boundary);
-            int len = 0;
-            char *start = epd->contents, *p2 = NULL, *p1 = NULL, *pp = NULL, *value = NULL;
-            int i = 0;
-
-            do {
-                p2 = strstr(start, epd->boundary);
-
-                if(p2) {
-                    start = p2 + blen;
-                }
-
-                if(p1) {
-                    p1 += blen;
-
-                    if(p2) {
-                        * (p2 - 4) = '\0';
-
-                    } else {
-                        break;
-                    }
-
-                    len = p2 - p1;
-                    value = (char *)stristr(p1, "\r\n\r\n", len);
-
-                    if(value && value[4] != '\0') {
-                        value[0] = '\0';
-                        value += 4;
-                        char *keyname = strstr(p1, "name=\"");
-                        char *filename = NULL;
-                        char *content_type = NULL;
-
-                        if(keyname) {
-                            keyname += 6;
-
-                            for(pp = keyname; *pp != '\0'; pp++) {
-                                if(*pp == '"') {
-                                    *pp = '\0';
-                                    p1 = pp + 2;
-                                    break;
-                                }
-                            }
-
-                            filename = strstr(p1, "filename=\"");
-
-                            if(filename) {    /// is file filed
-                                filename += 10;
-
-                                for(pp = filename; *pp != '\0'; pp++) {
-                                    if(*pp == '"') {
-                                        *pp = '\0';
-                                        p1 = pp + 2;
-                                        break;
-                                    }
-                                }
-
-                                content_type = strstr(p1, "Content-Type:");
-
-                                if(content_type) {
-                                    content_type += 13;
-
-                                    if(content_type[0] == ' ') {
-                                        content_type += 1;
-                                    }
-                                }
-
-                                lua_newtable(L);
-                                lua_pushstring(L, filename);
-                                lua_setfield(L, -2, "filename");
-                                lua_pushstring(L, content_type);
-                                lua_setfield(L, -2, "type");
-                                lua_pushnumber(L, p2 - value - 4);
-                                lua_setfield(L, -2, "size");
-                                lua_pushlstring(L, value, p2 - value - 4);
-                                lua_setfield(L, -2, "data");
-
-                                lua_setfield(L, -2, keyname);
-
-                            } else {
-                                lua_pushstring(L, value);
-                                lua_setfield(L, -2, keyname);
-                            }
-                        }
-                    }
-                }
-
-                p1 = p2 + 2;
-            } while(p2);
-        }
-
-        lua_setglobal(L, "_POST");
-    */
 
     lua_pushnil(L);
     lua_setglobal(L, "__body_buf");
@@ -535,7 +420,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_pushstring(L, buf_4096);
     lua_getglobal(L, "package");
-    lua_insert(L, -2); //-1 bufres -2 pachage
+    lua_insert(L, -2); //-1 bufres -2 package
     lua_setfield(L, -2, "path"); //-1: path -2: package
     lua_pop(L, 1); //void
 
@@ -561,8 +446,6 @@ int worker_process(epdata_t *epd, int thread_at)
     }
 
     return 0;
-
-    //network_send_error(epd, 503, "Lua Error: main function not found !!!");
 }
 
 static void be_accept(int client_fd, struct in_addr client_addr)
@@ -728,7 +611,6 @@ void worker_main(int _worker_n)
 
     init_mime_types();
     shm_serv_status = _shm_serv_status->p;
-    //memcpy(shm_serv_status, &serv_status, sizeof(serv_status_t));
 
     if(luaL_loadfile(_L, "core.lua")) {
         LOGF(ERR, "Couldn't load file: %s", lua_tostring(_L, -1));
