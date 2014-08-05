@@ -80,8 +80,14 @@ int network_send_header(epdata_t *epd, const char *header)
         }
 
         if(header[0] != 'H' && header[4] != '/') {
-            memcpy(epd->iov[0].iov_base, "HTTP/1.1 200 OK\r\n", 17);
-            epd->response_header_length += 17;
+            if((header[0] == 'L' || header[0] == 'l') && stricmp(header, "Location:")) {
+                memcpy(epd->iov[0].iov_base, "HTTP/1.1 302 Moved\r\n", 20);
+                epd->response_header_length += 20;
+
+            } else {
+                memcpy(epd->iov[0].iov_base, "HTTP/1.1 200 OK\r\n", 17);
+                epd->response_header_length += 17;
+            }
         }
     }
 
@@ -559,6 +565,7 @@ int network_be_read_on_clear(se_ptr_t *ptr);
 void network_be_end(epdata_t *epd) // for lua function die
 {
     if(epd->content_length > epd->data_len - epd->_header_length && epd->fd > -1) {
+        epd->status = STEP_READ;
         serv_status.reading_counts++;
         se_be_read(epd->se_ptr, network_be_read_on_clear);
         return;
@@ -724,6 +731,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
 
     while((n = recv(epd->fd, &temp_buf64k, 61440, 0)) >= 0) {
         if(n == 0) {
+            epd->status = STEP_PROCESS;
             se_delete(epd->se_ptr);
             epd->se_ptr = NULL;
             close(epd->fd);
@@ -737,6 +745,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
         epd->data_len += n;
 
         if(epd->content_length <= epd->data_len - epd->_header_length) {
+            epd->status = STEP_PROCESS;
             se_be_pri(epd->se_ptr, NULL);
             serv_status.reading_counts--;
             network_be_end(epd);
@@ -745,6 +754,7 @@ int network_be_read_on_clear(se_ptr_t *ptr)
     }
 
     if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        epd->status = STEP_PROCESS;
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);

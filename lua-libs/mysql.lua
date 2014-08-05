@@ -1098,7 +1098,7 @@ function _M.get_var(self, query)
     end
 
     local r, err = read_result(self)
-    if r and #r < 1 then r = nil else r = r[1][next(r[1])] end
+    if not r or #r < 1 then r = nil else r = r[1][next(r[1])] end
     return r, err
 end
 
@@ -1118,8 +1118,8 @@ function _M.get_row(self, query)
     end
 
     local r, err = read_result(self)
-    if r and #r < 1 then r = nil end
-    return r, err
+    if not r or #r < 1 then return nil, err end
+    return r[1], err
 end
 
 function _M.get_results(self, query)

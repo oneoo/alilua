@@ -441,8 +441,10 @@ function router(u,t,p)
     elseif p then
         local r,e = dofile(p)
         if e then
+            header('HTTP/1.1 503 Server Error')
+            header('Content-Type: text/html; charset=UTF-8')
             print_error(e)
-            return nil
+            die()
         end
 
         return true
