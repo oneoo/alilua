@@ -153,11 +153,9 @@ static int send_then_send(se_ptr_t *ptr)
 
     free(buf);
 
-    if(lua_resume(epd->L, 0) != LUA_YIELD) {
-        if(lua_isstring(epd->L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-            lua_pop(epd->L, 1);
-        }
+    if(lua_resume(epd->L, 0) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+        LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+        lua_pop(epd->L, 1);
     }
 
     return 0;
@@ -623,11 +621,9 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushstring(epd->L, "memory error");
         LOGF(ERR, "memory error!");
 
-        if(lua_resume(epd->L, 2) != LUA_YIELD) {
-            if(lua_isstring(epd->L, -1)) {
-                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                lua_pop(epd->L, 1);
-            }
+        if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+            lua_pop(epd->L, 1);
         }
 
         return 0;
@@ -666,11 +662,9 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
 
-        if(lua_resume(epd->L, 1) != LUA_YIELD) {
-            if(lua_isstring(epd->L, -1)) {
-                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                lua_pop(epd->L, 1);
-            }
+        if(lua_resume(epd->L, 1) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+            lua_pop(epd->L, 1);
         }
 
     } else if(n == 0) {
@@ -688,11 +682,9 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushnil(epd->L);
         lua_pushstring(epd->L, "socket closed");
 
-        if(lua_resume(epd->L, 2) != LUA_YIELD) {
-            if(lua_isstring(epd->L, -1)) {
-                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                lua_pop(epd->L, 1);
-            }
+        if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+            lua_pop(epd->L, 1);
         }
 
         return 0;

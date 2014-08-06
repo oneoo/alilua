@@ -1227,11 +1227,9 @@ int network_be_write(se_ptr_t *ptr)
 
                         lua_pushboolean(epd->L, 1);
 
-                        if(lua_resume(epd->L, 1) != LUA_YIELD) {
-                            if(lua_isstring(epd->L, -1)) {
-                                LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                                lua_pop(epd->L, 1);
-                            }
+                        if(lua_resume(epd->L, 1) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+                            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                            lua_pop(epd->L, 1);
                         }
                     }
 
@@ -1371,11 +1369,9 @@ int network_be_write(se_ptr_t *ptr)
                         se_be_pri(epd->se_ptr, NULL); // be wait
                     }
 
-                    if(lua_resume(epd->L, 2) != LUA_YIELD) {
-                        if(lua_isstring(epd->L, -1)) {
-                            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                            lua_pop(epd->L, 1);
-                        }
+                    if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
+                        LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
+                        lua_pop(epd->L, 1);
                     }
                 }
 

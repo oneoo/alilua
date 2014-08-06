@@ -81,11 +81,9 @@ lua_State *new_lua_thread(lua_State *_L)
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfenv(L, -2);
 
-    if(lua_resume(L, 0) != LUA_YIELD) {
-        if(lua_isstring(L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
+    if(lua_resume(L, 0) == LUA_ERRRUN && lua_isstring(L, -1)) {
+        LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
+        lua_pop(L, 1);
     }
 
     return L;
