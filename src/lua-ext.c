@@ -615,7 +615,11 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         epd->se_ptr = NULL;
         close(epd->fd);
         epd->fd = -1;
-        serv_status.reading_counts--;
+
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+            epd->status = STEP_PROCESS;
+        }
 
         lua_pushnil(epd->L);
         lua_pushstring(epd->L, "memory error");
@@ -635,7 +639,12 @@ static int network_be_read_request_body(se_ptr_t *ptr)
             epd->se_ptr = NULL;
             close(epd->fd);
             epd->fd = -1;
+
             //serv_status.reading_counts--;
+            if(epd->status == STEP_READ) {
+                serv_status.reading_counts--;
+                epd->status = STEP_PROCESS;
+            }
 
             break;
         }
@@ -658,6 +667,11 @@ static int network_be_read_request_body(se_ptr_t *ptr)
     }
 
     if(readed > 0) {
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+            epd->status = STEP_PROCESS;
+        }
+
         se_be_pri(epd->se_ptr, NULL); // be wait
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
@@ -677,7 +691,11 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         epd->se_ptr = NULL;
         close(epd->fd);
         epd->fd = -1;
-        serv_status.reading_counts--;
+
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+            epd->status = STEP_PROCESS;
+        }
 
         lua_pushnil(epd->L);
         lua_pushstring(epd->L, "socket closed");
@@ -718,6 +736,7 @@ int lua_read_request_body(lua_State *L)
         return 2;
     }
 
+    epd->status = STEP_READ;
     serv_status.reading_counts++;
     se_be_read(epd->se_ptr, network_be_read_request_body);
 

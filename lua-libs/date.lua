@@ -638,6 +638,9 @@
     str = str or self.fmtstr or fmtstr
     return self:fmt0((gmatch(str, "${%w+}")) and (gsub(str, "${%w+}", function(x)local f=tvspec[x];return (f and f(self)) or x end)) or str)
   end
+  function dobj:unixtime()
+    return ostime({year = self:getyear(), month = self:getmonth(), day = self:getday(), hour = self:gethours(), min = self:getminutes(), sec = self:getseconds()})
+  end
 
   function dobj.__lt(a, b) if (a.daynum == b.daynum) then return (a.dayfrc < b.dayfrc) else return (a.daynum < b.daynum) end end
   function dobj.__le(a, b) if (a.daynum == b.daynum) then return (a.dayfrc <= b.dayfrc) else return (a.daynum <= b.daynum) end end
