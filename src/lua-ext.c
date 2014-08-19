@@ -171,7 +171,7 @@ static int _lua_echo(epdata_t *epd, lua_State *L, int nargs, int can_yield)
         len = lua_calc_strlen_in_table(L, 1, 2, 0 /* strict */);
 
         if(len < 1) {
-            return;
+            return 0;
         }
 
         char *buf = temp_buf;
@@ -180,7 +180,7 @@ static int _lua_echo(epdata_t *epd, lua_State *L, int nargs, int can_yield)
             buf = malloc(len);
 
             if(!buf) {
-                return;
+                return 0;
             }
 
             lua_copy_str_in_table(L, 1, buf);

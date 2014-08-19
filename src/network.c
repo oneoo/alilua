@@ -565,8 +565,11 @@ int network_be_read_on_clear(se_ptr_t *ptr);
 void network_be_end(epdata_t *epd) // for lua function die
 {
     if(epd->content_length > epd->data_len - epd->_header_length && epd->fd > -1) {
-        epd->status = STEP_READ;
-        serv_status.reading_counts++;
+        if(epd->status != STEP_READ) {
+            epd->status = STEP_READ;
+            serv_status.reading_counts++;
+        }
+
         se_be_read(epd->se_ptr, network_be_read_on_clear);
         return;
     }
