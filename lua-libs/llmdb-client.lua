@@ -27,6 +27,7 @@ function _M.new(self, path)
         if err then
             return nil, err
         end
+        e:set_mapsize(1024*1024*1024*1024)
     end
 
     self.db = e

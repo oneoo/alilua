@@ -19,7 +19,7 @@ LIBLUA = -L$(PWD)/luajit/src/ $(INCLUDES) $(PWD)/luajit/src/libluajit.a
 SYS = $(shell gcc -dumpmachine)
 
 
-ifneq (, $(findstring i686-apple-darwin, $(SYS)))
+ifneq (, $(findstring apple-darwin, $(SYS)))
 MACGCC = -pagezero_size 10000 -image_base 100000000
 else
 MACGCC = -Wl,-E
