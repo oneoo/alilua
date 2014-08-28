@@ -832,9 +832,10 @@ int network_be_read(se_ptr_t *ptr)
                 recv(epd->fd, epd->headers + epd->data_len, epd->buf_size - epd->data_len, 0))) >= 0) {
         if(n == 0) {
             if(epd->data_len > 0) {
+                epd->status = STEP_PROCESS;
+                serv_status.reading_counts--;
                 epd->keepalive = 0;
                 network_end_process(epd, 400);
-                serv_status.reading_counts--;
 
             } else {
                 close_client(epd);

@@ -136,11 +136,12 @@ static void timeout_handle(void *ptr)
     epdata_t *epd = ptr;
 
     if(epd->status == STEP_READ) {
+        serv_status.reading_counts--;
         epd->keepalive = 0;
         //LOGF(ERR, "Read Timeout!");
+        epd->status = STEP_PROCESS;
         network_send_error(epd, 400, "Timeout!");
         return;
-        //serv_status.reading_counts--;
 
     } else if(epd->status == STEP_SEND) {
         //LOGF(ERR, "Send Timeout!");
