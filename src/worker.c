@@ -3,6 +3,8 @@
 #include "network.h"
 #include "vhost.h"
 #include "../coevent/src/coevent.h"
+#include "cached-ntoa.h"
+#include "cached-access.h"
 
 int worker_n = 0;
 static char buf_4096[4096] = {0};
@@ -319,13 +321,13 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
-    char *client_ip = inet_ntoa(epd->client_addr);
+    char *client_ip = cached_ntoa(epd->client_addr);
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
     int l = sizeof(struct sockaddr);
     struct sockaddr_in addr;
     getsockname(epd->fd, (struct sockaddr *) &addr, &l);
-    lua_pushstring(L, inet_ntoa(addr.sin_addr));
+    lua_pushstring(L, cached_ntoa(addr.sin_addr));
     lua_setfield(L, -2, "server-addr");
 
     lua_setglobal(L, "headers");
@@ -606,6 +608,11 @@ void worker_main(int _worker_n)
 
     if(is_daemon == 1 && !getarg("gcore")) {
         set_process_user(/*user*/ NULL, /*group*/ NULL);
+    }
+
+    if(!init_ntoa_cache() || !init_access_cache()) {
+        LOGF(ERR, "Couldn't init rbtree");
+        exit(1);
     }
 
     init_mime_types();

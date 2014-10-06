@@ -3,6 +3,7 @@
 #include "network.h"
 #include "websocket.h"
 #include "worker.h"
+#include "cached-ntoa.h"
 
 static char temp_buf[8192];
 static char temp_buf64k[61440];
@@ -361,7 +362,7 @@ void network_end_process(epdata_t *epd, int response_code)
 
     if(ACCESS_LOG) log_writef(ACCESS_LOG,
                                   "%s - - [%s] %s \"%s %s %s\" %d %d %d %d %d \"%s\" \"%s\" %.3f\n",
-                                  inet_ntoa(epd->client_addr),
+                                  cached_ntoa(epd->client_addr),
                                   now_lc,
                                   epd->host ? epd->host : "-",
                                   epd->method ? epd->method : "-",

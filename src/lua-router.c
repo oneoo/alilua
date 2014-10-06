@@ -3,6 +3,7 @@
 #include "network.h"
 #include "lua-ext.h"
 #include <regex.h>
+#include "cached-access.h"
 
 int lua_routed = 0;
 static char temp_buf[8192];
@@ -242,7 +243,8 @@ int lua_f_router(lua_State *L)
             memcpy(full_fname + len, ".lua", 4);
             full_fname[len + 4] = '\0';
 
-            if(access(full_fname, F_OK) != -1) {
+            //if(access(full_fname, F_OK) != -1) {
+            if(cached_access(fnv1a_32(full_fname, len + 4), full_fname) != -1) {
                 lua_pushnil(L);
                 lua_pushstring(L, full_fname + (len - uri_len));
                 return 2;
@@ -251,7 +253,8 @@ int lua_f_router(lua_State *L)
             memcpy(full_fname + len, "index.lua", 9);
             full_fname[len + 9] = '\0';
 
-            if(access(full_fname, F_OK) != -1) {
+            //if(access(full_fname, F_OK) != -1) {
+            if(cached_access(fnv1a_32(full_fname, len + 9), full_fname) != -1) {
                 lua_pushnil(L);
                 lua_pushstring(L, full_fname + (len - uri_len));
                 return 2;
@@ -261,7 +264,8 @@ int lua_f_router(lua_State *L)
                 memcpy(full_fname + len - 1, ".lua", 4);
                 full_fname[len - 1 + 4] = '\0';
 
-                if(access(full_fname, F_OK) != -1) {
+                //if(access(full_fname, F_OK) != -1) {
+                if(cached_access(fnv1a_32(full_fname, len + 3), full_fname) != -1) {
                     lua_pushnil(L);
                     lua_pushstring(L, full_fname + (len - uri_len));
                     return 2;
@@ -331,4 +335,3 @@ int lua_f_router(lua_State *L)
 
     return 0;
 }
-

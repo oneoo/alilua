@@ -106,4 +106,6 @@ void init_lua_threads(lua_State *_L, int count)
             release_lua_thread(*L);
         }
     }
+
+    free(LS);
 }
