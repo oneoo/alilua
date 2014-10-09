@@ -98,7 +98,6 @@ lua_State *new_lua_thread(lua_State *_L)
     if(lua_thread_count >= MAX_LUA_THREAD_COUNT) {
         LOGF(ERR, "Lua thread pool full!");
         return NULL;
-
     }
 
     lua_thread_count++;

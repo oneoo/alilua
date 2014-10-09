@@ -782,9 +782,6 @@ int send_100_continue_then_process(se_ptr_t *ptr)
     epd->response_content_length = 0;
     epd->iov_buf_count = 0;
 
-    epd->status = STEP_PROCESS;
-    serv_status.sending_counts--;
-
     if(worker_process(epd, 0) != 0) {
         close_client(epd);
         epd = NULL;
@@ -1009,7 +1006,7 @@ int network_be_read(se_ptr_t *ptr)
                 epd->has_content_length_or_chunk_out = 0;
                 epd->content_gzip_or_deflated = 0;
 
-                if(stristr(epd->headers + (epd->_header_length - 60), "100-continue", epd->_header_length)) {
+                if(stristr(epd->headers, "100-continue", epd->_header_length)) {
                     //network_raw_send(epd->fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
                     if(epd->iov[0].iov_base == NULL) {
                         epd->iov[0].iov_base = malloc(EP_D_BUF_SIZE);
