@@ -11,6 +11,30 @@ static int lua_thread_count = 0;
 static lua_thread_link_t *lua_thread_head = NULL;
 static lua_thread_link_t *lua_thread_tail = NULL;
 
+void reinit_lua_thread_env(lua_State *L)
+{
+    lua_getglobal(L, "_G");
+    lua_getglobal(L, "__INDEXS");
+    lua_pushnil(L);
+
+    while(lua_next(L, -2)) {
+        if(lua_type(L, -2) == LUA_TSTRING) {
+            //printf("* %s (%s) = %s\n", lua_tostring(L, -2), lua_typename(L, lua_type(L, -1)), lua_typename(L, lua_type(L, -3)));
+            lua_pushvalue(L, -2);
+            lua_pushnil(L);
+            lua_rawset(L, -6); //set _G
+
+            lua_pushvalue(L, -2);
+            lua_pushnil(L);
+            lua_rawset(L, -5); //set __INDEXS
+        }
+
+        lua_pop(L, 1);
+    }
+
+    lua_pop(L, 2);
+}
+
 void release_lua_thread(lua_State *L)
 {
     lua_thread_link_t *l = malloc(sizeof(lua_thread_link_t));
@@ -31,6 +55,26 @@ void release_lua_thread(lua_State *L)
     }
 
     lua_thread_tail = l;
+}
+
+static int l_env_newindex(lua_State *L)
+{
+    size_t len = 0;
+    const char *key = lua_tolstring(L, 2, &len);
+    lua_settop(L, 3);
+    lua_rawset(L, -3);
+    {
+        lua_getglobal(L, "__INDEXS");
+
+        if((len < 2 || (key[0] != '_' && key[1] != '_')) && lua_istable(L, -1)) {
+            lua_pushstring(L, key);
+            lua_pushboolean(L, 1);
+            lua_rawset(L, -3);
+            lua_pop(L, 1);
+        }
+    }
+
+    return 0;
 }
 
 lua_State *new_lua_thread(lua_State *_L)
@@ -66,7 +110,7 @@ lua_State *new_lua_thread(lua_State *_L)
     int m_refkey = luaL_ref(_L, LUA_REGISTRYINDEX);
     // when you want to kill it.
     //lua_unref(m_state, m_refkey);
-    lua_newtable(L);
+    lua_createtable(L, 0, 100);
     lua_pushvalue(L, -1);
     lua_setfield(L, -2, "_G");
 
@@ -74,6 +118,10 @@ lua_State *new_lua_thread(lua_State *_L)
     lua_pushliteral(L, "__index");
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_settable(L, -3);
+
+    lua_pushcfunction(L, l_env_newindex);
+    lua_setfield(L, -2, "__newindex");
+
     lua_setmetatable(L, -2);
     lua_replace(L, LUA_GLOBALSINDEX);
 
@@ -85,6 +133,9 @@ lua_State *new_lua_thread(lua_State *_L)
         LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
         lua_pop(L, 1);
     }
+
+    lua_createtable(L, 0, 100);
+    lua_setglobal(L, "__INDEXS");
 
     return L;
 }

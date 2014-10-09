@@ -377,6 +377,10 @@ void network_end_process(epdata_t *epd, int response_code)
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
 
+    if(epd->L) {
+        reinit_lua_thread_env(epd->L);
+    }
+
     if(epd->keepalive == 1 && !check_process_for_exit()) { // && epd->se_ptr
         update_timeout(epd->timeout_ptr, STEP_WAIT_TIMEOUT);
         free_epd_request(epd);

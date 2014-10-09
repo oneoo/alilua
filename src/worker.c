@@ -222,7 +222,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
             } else {
                 if(init_tables == 0) {
-                    lua_newtable(L); //headers
+                    lua_createtable(L, 0, 20); //headers
                 }
             }
 
@@ -332,7 +332,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_setglobal(L, "headers");
 
-    lua_newtable(L); /// _GET
+    lua_createtable(L, 0, 20); /// _GET
 
     if(epd->query) { /// parse query string /?a=1&b=2
         char *last = NULL;
@@ -375,7 +375,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_setglobal(L, "_GET");
 
-    lua_newtable(L); /// _COOKIE
+    lua_createtable(L, 0, 20); /// _COOKIE
 
     if(cookies) {
         while(t1 = strtok_r(cookies, ";", &cookies)) {

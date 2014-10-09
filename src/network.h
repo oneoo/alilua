@@ -112,6 +112,7 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
 
 void init_lua_threads(lua_State *_L, int count);
 lua_State *new_lua_thread(lua_State *_L);
+void reinit_lua_thread_env(lua_State *L);
 void release_lua_thread(lua_State *L);
 
 #endif /// _ALILUA_NETWORK_H

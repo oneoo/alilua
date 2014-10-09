@@ -240,27 +240,37 @@ int lua_f_router(lua_State *L)
 
             full_fname[len] = '\0';
 
-            memcpy(full_fname + len, ".lua", 4);
-            full_fname[len + 4] = '\0';
-
-            //if(access(full_fname, F_OK) != -1) {
-            if(cached_access(fnv1a_32(full_fname, len + 4), full_fname) != -1) {
-                lua_pushnil(L);
-                lua_pushstring(L, full_fname + (len - uri_len));
-                return 2;
+            if(full_fname[len - 4] == '.' && full_fname[len - 3] == 'l' && full_fname[len - 1] == 'a') {
+                if(cached_access(fnv1a_32(full_fname, len), full_fname) != -1) {
+                    lua_pushnil(L);
+                    lua_pushstring(L, full_fname + (len - uri_len));
+                    return 2;
+                }
             }
 
-            memcpy(full_fname + len, "index.lua", 9);
-            full_fname[len + 9] = '\0';
+            if(full_fname[len - 1] != '/') {
+                memcpy(full_fname + len, ".lua", 4);
+                full_fname[len + 4] = '\0';
 
-            //if(access(full_fname, F_OK) != -1) {
-            if(cached_access(fnv1a_32(full_fname, len + 9), full_fname) != -1) {
-                lua_pushnil(L);
-                lua_pushstring(L, full_fname + (len - uri_len));
-                return 2;
-            }
+                //if(access(full_fname, F_OK) != -1) {
+                if(cached_access(fnv1a_32(full_fname, len + 4), full_fname) != -1) {
+                    lua_pushnil(L);
+                    lua_pushstring(L, full_fname + (len - uri_len));
+                    return 2;
+                }
 
-            if(uri[uri_len - 1] == '/') {
+            } else {
+
+                memcpy(full_fname + len, "index.lua", 9);
+                full_fname[len + 9] = '\0';
+
+                //if(access(full_fname, F_OK) != -1) {
+                if(cached_access(fnv1a_32(full_fname, len + 9), full_fname) != -1) {
+                    lua_pushnil(L);
+                    lua_pushstring(L, full_fname + (len - uri_len));
+                    return 2;
+                }
+
                 memcpy(full_fname + len - 1, ".lua", 4);
                 full_fname[len - 1 + 4] = '\0';
 
