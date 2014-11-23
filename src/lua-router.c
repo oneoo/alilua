@@ -211,8 +211,9 @@ int lua_f_router(lua_State *L)
 
     if(uri_len < 1 || uri[0] != '/') {
         lua_pushnil(L);
+        lua_pushnil(L);
         lua_pushstring(L, "not a uri");
-        return 2;
+        return 3;
     }
 
     if(lua_isstring(L, 3)) {

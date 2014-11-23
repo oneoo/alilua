@@ -1080,7 +1080,7 @@ int network_be_read(se_ptr_t *ptr)
     }
 
     if(epd && n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        LOGF(ERR, "error fd %d (%d) %s", epd->fd, errno, strerror(errno));
+        //LOGF(ERR, "error fd %d (%d) %s", epd->fd, errno, strerror(errno));
         close_client(epd);
         epd = NULL;
         return 0;

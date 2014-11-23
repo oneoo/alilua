@@ -180,6 +180,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
         if(!epd->L) {
             network_send_error(epd, 503, "Lua Error: Thread pool full !!!");
+            LOGF(ERR, "Lua Error: Thread pool full !!!");
             return 0;
         }
 
@@ -321,7 +322,7 @@ int worker_process(epdata_t *epd, int thread_at)
         }
     }
 
-    char *client_ip = cached_ntoa(epd->client_addr);
+    const char *client_ip = cached_ntoa(epd->client_addr);
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
     int l = sizeof(struct sockaddr);
@@ -629,7 +630,20 @@ void worker_main(int _worker_n)
     lua_rawgeti(_L, LUA_REGISTRYINDEX, mrkey);
     lua_rawset(_L, LUA_GLOBALSINDEX);
 
-    init_lua_threads(_L, 1000);
+    int thread_count = 1000;
+
+    if(getarg("thread")) {
+        thread_count = atoi(getarg("thread"));
+
+        if(thread_count < 100) {
+            thread_count = 100;
+
+        } else if(thread_count > 10000) {
+            thread_count = 10000;
+        }
+    }
+
+    init_lua_threads(_L, thread_count);
 
     /// 进入 loop 处理循环
     loop_fd = se_create(4096);

@@ -4,7 +4,7 @@
 #include "websocket.h"
 
 static unsigned char buf_256[256];
-static uint64_t ntohll(uint64_t n)
+static uint64_t _ntohll(uint64_t n)
 {
 #if BYTE_ORDER == LITTLE_ENDIAN
     n = ((n << 8) & 0xFF00FF00FF00FF00ULL) |
@@ -337,7 +337,7 @@ int ws_send_data(epdata_t *epd, unsigned int fin, unsigned int rsv1, unsigned in
     } else {
         void *p = &buf_256[2];
         buf_256[1] = 127;
-        * (uint64_t *) p = ntohll((uint64_t) payload_len);
+        * (uint64_t *) p = _ntohll((uint64_t) payload_len);
         offset = 10;
     }
 
