@@ -716,6 +716,8 @@ int network_be_read_on_processing(se_ptr_t *ptr)
     }
 
     if(n <= 0 || b) {
+        serv_status.active_counts--;
+
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);
@@ -740,6 +742,9 @@ int network_be_read_on_clear(se_ptr_t *ptr)
     while((n = recv(epd->fd, &temp_buf64k, 61440, 0)) >= 0) {
         if(n == 0) {
             epd->status = STEP_PROCESS;
+
+            serv_status.active_counts--;
+
             se_delete(epd->se_ptr);
             epd->se_ptr = NULL;
             close(epd->fd);
@@ -763,6 +768,9 @@ int network_be_read_on_clear(se_ptr_t *ptr)
 
     if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         epd->status = STEP_PROCESS;
+
+        serv_status.active_counts--;
+
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);
@@ -1233,10 +1241,8 @@ int network_be_write(se_ptr_t *ptr)
 
                         lua_pushboolean(epd->L, 1);
 
-                        if(lua_resume(epd->L, 1) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-                            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                            lua_pop(epd->L, 1);
-                        }
+                        lua_f_lua_uthread_resume_in_c(epd->L, 1);
+
                     }
 
                     break;
@@ -1375,10 +1381,8 @@ int network_be_write(se_ptr_t *ptr)
                         se_be_pri(epd->se_ptr, NULL); // be wait
                     }
 
-                    if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-                        LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-                        lua_pop(epd->L, 1);
-                    }
+                    lua_f_lua_uthread_resume_in_c(epd->L, 2);
+
                 }
 
                 break;

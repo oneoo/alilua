@@ -13,23 +13,24 @@ static lua_thread_link_t *lua_thread_tail = NULL;
 
 void reinit_lua_thread_env(lua_State *L)
 {
+    lua_settop(L, lua_gettop(L));
+
     lua_getglobal(L, "_G");
     lua_getglobal(L, "__INDEXS");
     lua_pushnil(L);
 
     while(lua_next(L, -2)) {
-        if(lua_type(L, -2) == LUA_TSTRING) {
-            //printf("* %s (%s) = %s\n", lua_tostring(L, -2), lua_typename(L, lua_type(L, -1)), lua_typename(L, lua_type(L, -3)));
-            lua_pushvalue(L, -2);
-            lua_pushnil(L);
-            lua_rawset(L, -6); //set _G
-
-            lua_pushvalue(L, -2);
-            lua_pushnil(L);
-            lua_rawset(L, -5); //set __INDEXS
-        }
-
         lua_pop(L, 1);
+
+        if(lua_type(L, -1) == LUA_TSTRING) {
+            lua_pushvalue(L, -1);
+            lua_pushnil(L);
+            lua_rawset(L, -5); //set _G
+
+            lua_pushvalue(L, -1);
+            lua_pushnil(L);
+            lua_rawset(L, -4); //set __INDEXS
+        }
     }
 
     lua_pop(L, 2);
@@ -60,6 +61,11 @@ void release_lua_thread(lua_State *L)
 static int l_env_newindex(lua_State *L)
 {
     size_t len = 0;
+
+    if(!lua_isstring(L, 2)) {
+        return 0;
+    }
+
     const char *key = lua_tolstring(L, 2, &len);
     lua_settop(L, 3);
     lua_rawset(L, -3);
@@ -128,8 +134,11 @@ lua_State *new_lua_thread(lua_State *_L)
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfenv(L, -2);
 
-    if(lua_resume(L, 0) == LUA_ERRRUN && lua_isstring(L, -1)) {
-        LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
+    if(lua_resume(L, 0) == LUA_ERRRUN) {
+        if(lua_isstring(L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
+        }
+
         lua_pop(L, 1);
     }
 

@@ -267,10 +267,7 @@ int websocket_be_write(se_ptr_t *ptr)
                 lua_pushnil(L);
                 lua_pushstring(L, "send error!");
 
-                if(lua_resume(L, 2) == LUA_ERRRUN && lua_isstring(L, -1)) {
-                    LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
-                    lua_pop(L, 1);
-                }
+                lua_f_lua_uthread_resume_in_c(L, 2);
 
                 return 0;
             }
@@ -290,10 +287,7 @@ int websocket_be_write(se_ptr_t *ptr)
         lua_State *L = (lua_State *) epd->L;
         lua_pushboolean(L, 1);
 
-        if(lua_resume(L, 1) == LUA_ERRRUN && lua_isstring(L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
+        lua_f_lua_uthread_resume_in_c(L, 1);
 
         return 0;
     }

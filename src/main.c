@@ -239,7 +239,7 @@ int main(int argc, const char **argv)
                   "if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end " \
                   "CodeCache = cacheTable(CODE_CACHE_TTL) " \
                   "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)" \
-                  "cothreads = {} "
+                  "startloop = nil "
                  );
 
     if(getarg("accesslog")) {

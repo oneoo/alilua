@@ -441,9 +441,15 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_routed = 0;
 
-    if(lua_resume(L, 1) == LUA_ERRRUN && lua_isstring(L, -1)) {
-        LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
-        network_send_error(epd, 503, lua_tostring(L, -1));
+    if(lua_resume(L, 1) == LUA_ERRRUN) {
+        if(lua_isstring(L, -1)) {
+            LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
+            network_send_error(epd, 503, lua_tostring(L, -1));
+
+        } else {
+            network_send_error(epd, 503, "UNKNOW!");
+        }
+
         lua_pop(L, 1);
     }
 

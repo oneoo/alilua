@@ -40,6 +40,7 @@ int lua_check_timeout(lua_State *L)
 
     if(longtime() - epd->start_time > STEP_PROCESS_TIMEOUT) {
         epd->keepalive = 0;
+        LOGF(ERR, "Process Time Out!");
         lua_pushstring(L, "Process Time Out!");
         lua_error(L);    /// stop lua script
     }
@@ -153,10 +154,7 @@ static int send_then_send(se_ptr_t *ptr)
 
     free(buf);
 
-    if(lua_resume(epd->L, 0) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-        LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-        lua_pop(epd->L, 1);
-    }
+    lua_f_lua_uthread_resume_in_c(epd->L, 0);
 
     return 0;
 }
@@ -611,6 +609,8 @@ static int network_be_read_request_body(se_ptr_t *ptr)
     int buf_size = 65536;
 
     if(!buf) {
+        serv_status.active_counts--;
+
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);
@@ -625,22 +625,20 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushstring(epd->L, "memory error");
         LOGF(ERR, "memory error!");
 
-        if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-            lua_pop(epd->L, 1);
-        }
+        lua_f_lua_uthread_resume_in_c(epd->L, 2);
 
         return 0;
     }
 
     while((n = recv(epd->fd, buf + readed, buf_size - readed, 0)) >= 0) {
         if(n == 0) {
+            serv_status.active_counts--;
+
             se_delete(epd->se_ptr);
             epd->se_ptr = NULL;
             close(epd->fd);
             epd->fd = -1;
 
-            //serv_status.reading_counts--;
             if(epd->status == STEP_READ) {
                 serv_status.reading_counts--;
                 epd->status = STEP_PROCESS;
@@ -676,10 +674,7 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
 
-        if(lua_resume(epd->L, 1) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-            lua_pop(epd->L, 1);
-        }
+        lua_f_lua_uthread_resume_in_c(epd->L, 1);
 
     } else if(n == 0) {
         n = -1;
@@ -687,6 +682,8 @@ static int network_be_read_request_body(se_ptr_t *ptr)
     }
 
     if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        serv_status.active_counts--;
+
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
         close(epd->fd);
@@ -700,10 +697,7 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         lua_pushnil(epd->L);
         lua_pushstring(epd->L, "socket closed");
 
-        if(lua_resume(epd->L, 2) == LUA_ERRRUN && lua_isstring(epd->L, -1)) {
-            LOGF(ERR, "Lua:error %s", lua_tostring(epd->L, -1));
-            lua_pop(epd->L, 1);
-        }
+        lua_f_lua_uthread_resume_in_c(epd->L, 2);
 
         return 0;
     }
