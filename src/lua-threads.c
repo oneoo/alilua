@@ -1,4 +1,5 @@
 #include "main.h"
+#include "../coevent/merry/common/rbtree.h"
 
 #define MAX_LUA_THREAD_COUNT 10000
 
@@ -11,29 +12,86 @@ static int lua_thread_count = 0;
 static lua_thread_link_t *lua_thread_head = NULL;
 static lua_thread_link_t *lua_thread_tail = NULL;
 
-void reinit_lua_thread_env(lua_State *L)
+static rb_tree_t coroutine_tree;
+static int lua_thread_inited = 0;
+
+typedef struct {
+    lua_State *co;
+    void *gk;
+} rb_key_t;
+
+typedef struct {
+    char k[56];
+    void *next;
+} gk_key_t;
+
+static int corotinue_rbtree_compare(const void *lhs, const void *rhs)
 {
-    lua_settop(L, lua_gettop(L));
+    int ret = 0;
 
-    lua_getglobal(L, "_G");
-    lua_getglobal(L, "__INDEXS");
-    lua_pushnil(L);
+    const rb_key_t *l = (const rb_key_t *)lhs;
+    const rb_key_t *r = (const rb_key_t *)rhs;
 
-    while(lua_next(L, -2)) {
-        lua_pop(L, 1);
+    if(l->co > r->co) {
+        ret = 1;
 
-        if(lua_type(L, -1) == LUA_TSTRING) {
-            lua_pushvalue(L, -1);
-            lua_pushnil(L);
-            lua_rawset(L, -5); //set _G
+    } else if(l->co < r->co) {
+        ret = -1;
 
-            lua_pushvalue(L, -1);
-            lua_pushnil(L);
-            lua_rawset(L, -4); //set __INDEXS
+    }
+
+    return ret;
+}
+
+static rb_key_t *get_thread_rbtree_key(lua_State *co)
+{
+    rb_key_t *key = NULL, _key;
+    rb_tree_node_t *tnode = NULL;
+    _key.co = co;
+
+    if(rb_tree_find(&coroutine_tree, &_key, &tnode) == RB_OK) {
+        key = (rb_key_t *)((char *)tnode + sizeof(rb_tree_node_t));
+
+    } else {
+        tnode = malloc(sizeof(rb_tree_node_t) + sizeof(rb_key_t));
+        memset(tnode, 0, sizeof(rb_tree_node_t) + sizeof(rb_key_t));
+
+        key = (rb_key_t *)((char *)tnode + sizeof(rb_tree_node_t));
+
+        key->co = co;
+
+        if(rb_tree_insert(&coroutine_tree, key, tnode) != RB_OK) {
+            free(tnode);
+            tnode = NULL;
+            key = NULL;
         }
     }
 
-    lua_pop(L, 2);
+    return key;
+}
+
+
+void reinit_lua_thread_env(lua_State *L)
+{
+    rb_key_t *key = get_thread_rbtree_key(L);
+    gk_key_t *gk = key->gk, *bf = NULL;
+    key->gk = NULL;
+
+    lua_settop(L, lua_gettop(L));
+
+    lua_getglobal(L, "_G");
+
+    while(gk) {
+        lua_pushstring(L, gk->k);
+        lua_pushnil(L);
+        lua_rawset(L, -3);
+
+        bf = gk;
+        gk = gk->next;
+        free(bf);
+    }
+
+    lua_pop(L, 1);
 }
 
 void release_lua_thread(lua_State *L)
@@ -69,14 +127,16 @@ static int l_env_newindex(lua_State *L)
     const char *key = lua_tolstring(L, 2, &len);
     lua_settop(L, 3);
     lua_rawset(L, -3);
-    {
-        lua_getglobal(L, "__INDEXS");
 
-        if((len < 2 || (key[0] != '_' && key[1] != '_')) && lua_istable(L, -1)) {
-            lua_pushstring(L, key);
-            lua_pushboolean(L, 1);
-            lua_rawset(L, -3);
-            lua_pop(L, 1);
+    if(lua_thread_inited && len < 56 && (len < 2 || (key[0] != '_' && key[1] != '_'))) {
+        rb_key_t *_key = get_thread_rbtree_key(L);
+
+        if(_key) {
+            gk_key_t *gk = malloc(sizeof(gk_key_t));
+            memcpy(gk->k, key, len);
+            gk->k[len] = '\0';
+            gk->next = _key->gk;
+            _key->gk = gk;
         }
     }
 
@@ -105,6 +165,8 @@ lua_State *new_lua_thread(lua_State *_L)
         LOGF(ERR, "Lua thread pool full!");
         return NULL;
     }
+
+    lua_thread_inited = 0;
 
     lua_thread_count++;
     ///lua_getglobal(_L, "cothreads");
@@ -142,14 +204,15 @@ lua_State *new_lua_thread(lua_State *_L)
         lua_pop(L, 1);
     }
 
-    lua_createtable(L, 0, 100);
-    lua_setglobal(L, "__INDEXS");
+    lua_thread_inited = 1;
 
     return L;
 }
 
 void init_lua_threads(lua_State *_L, int count)
 {
+    rb_tree_new(&coroutine_tree, corotinue_rbtree_compare);
+
     int i = 0;
     void *LS = malloc(sizeof(void *)*count);
 
@@ -167,4 +230,6 @@ void init_lua_threads(lua_State *_L, int count)
     }
 
     free(LS);
+
+    lua_thread_inited = 1;
 }
