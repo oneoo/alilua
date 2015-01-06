@@ -1,5 +1,3 @@
-aa = 1
-
 function on(data,frame_opcode,is_multi_frame)
     LOG(INFO, data)
 	websocket_send('['..data..']')
@@ -7,7 +5,7 @@ function on(data,frame_opcode,is_multi_frame)
 end
 
 function loop()
-    websocket_send('text '.. aa)
+    websocket_send('text ' .. time())
 end
 
 websocket_accept(loop, on)
