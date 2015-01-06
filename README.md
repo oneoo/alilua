@@ -22,7 +22,7 @@ $ sudo apt-get install libssl-dev
 Fedora:
 
 ```bash
-sudo yum install openssl-devel
+$ sudo yum install openssl-devel
 ```
 
 ### Install aLiLua
@@ -46,12 +46,12 @@ Options
 
 ```
 	--bind=127.0.0.1:80  server bind. or --bind=80 for bind at 0.0.0.0:80
+	--daemon[=n]         process mode mode(start n workers)
+    --thread=n           number of Lua coroutines per worker
 	--ssl-bind           ssl server bind.
 	--ssl-cert           ssl Certificate file path
 	--ssl-key            ssl PrivateKey file path
 	--ssl-ca             ssl Client Certificate file path
-	--daemon             process mode
-	--process=number     workers
 	--log=file path      error log
 	--accesslog=...      access log
 	--host-route         Special route file path

@@ -64,18 +64,18 @@ static void help()
            "Options:\n"
            "\n"
            "    --bind=127.0.0.1:%d\tserver bind. or --bind=%d = 0.0.0.0:19827\n"
+           "    --daemon[=n]     \t\tdaemon mode(start n workers)\n"
+           "    --thread=n       \t\tnumber of Lua coroutines per worker\n"
            "    --ssl-bind\t\t\tssl server bind.\n"
            "    --ssl-cert\t\t\tssl Certificate file path\n"
            "    --ssl-key\t\t\tssl PrivateKey file path\n"
            "    --ssl-ca\t\t\tssl Client Certificate file path\n"
            "    --log=path[,level] \t\tlog file path, level=1-6\n"
            "    --accesslog=path \t\taccess log file path\n"
-           "    --process=n \t\tstart how many workers\n"
            "    --host-route=path \t\tSpecial route file path\n"
            "    --app=path \t\t\tSpecial app file path\n"
            "    --code-cache-ttl \t\tnumber of code cache time(sec) default 60 sec\n"
            "    --cache-size \t\tsize of YAC shared memory cache (1m or 4096000k)\n"
-           "    --daemon[=n]     \t\tdaemon mode(start n workers)\n"
            "  \n"
            "--------------------------------------------------------------------------------\n",
            "aLiLua", ALILUA_VERSION, program_name, bind_port, bind_port
@@ -205,41 +205,8 @@ int main(int argc, const char **argv)
     luaL_dostring(_L, tbuf_4096);
 
     luaL_dostring(_L, ""
-                  "math_floor = math.floor " \
-                  "function cacheTable(ttl) " \
-                  "    if not ttl or type(ttl) ~= 'number' or ttl < 2 then " \
-                  "        local t = {} " \
-                  "        local mt = {__newindex = function (t1,k,v) return false end} " \
-                  "        setmetatable(t, mt) " \
-                  "        return t " \
-                  "    end " \
-                  "    ttl = ttl/2 " \
-                  "    local t = {{},{},{}} " \
-                  "    local proxy = {} " \
-                  "    local mt = { " \
-                  "        __index = function (t1,k) " \
-                  "            local p = math_floor(time()/ttl) " \
-                  "            local p1=(p-2)%3+1 " \
-                  "            if t[p1].__has then t[p1] = {} end " \
-                  "            return t[(p)%3+1][k] " \
-                  "        end, " \
-                  "        __newindex = function (t1,k,v) " \
-                  "            local p = math_floor(time()/ttl) " \
-                  "            local p1=p%3+1 " \
-                  "            local p2=(p+1)%3+1 " \
-                  "            t[p1][k] = v " \
-                  "            t[p2][k] = v " \
-                  "            t[p1].__has = 1 " \
-                  "            t[p2].__has = 1 " \
-                  "        end " \
-                  "    } " \
-                  "    setmetatable(proxy, mt) " \
-                  "    return proxy " \
-                  "end " \
                   "if not CODE_CACHE_TTL then CODE_CACHE_TTL = 60 end " \
-                  "CodeCache = cacheTable(CODE_CACHE_TTL) " \
-                  "FileExistsCache = cacheTable(CODE_CACHE_TTL/2)" \
-                  "startloop = nil "
+                  "startloop = nil __CodeCache = {{},{}} __CodeCacheC = {false,false} "
                  );
 
     if(getarg("accesslog")) {

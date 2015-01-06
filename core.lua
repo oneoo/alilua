@@ -379,15 +379,30 @@ function loadstring(s,c)
     return f, e
 end
 
+math_floor = math.floor
+
 function loadfile(f)
     if not f then return nil end
     local _f = __root..f
-    local f1,e = CodeCache[_f]
+    local p1 = (math_floor(time()/CODE_CACHE_TTL)%2)+1
+    local p2 = ((math_floor(time()/CODE_CACHE_TTL)+1)%2)+1
+    local f1,e = CODE_CACHE_TTL > 0 and __CodeCache[p1][_f] or nil
+    if CODE_CACHE_TTL > 0 and __CodeCacheC[p2] then
+        __CodeCache[p2] = {}
+        __CodeCacheC[p2] = false
+    end
     if not f1 then
         f1,e = readfile(f)
         if f1 then
             f1,e = loadstring(f1, f)
-            CodeCache[_f] = f1
+            if f1 then
+                setfenv(f1, _G)
+            end
+
+            if CODE_CACHE_TTL > 0 then
+                __CodeCache[p1][_f] = f1
+                __CodeCacheC[p1] = true
+            end
         end
     else
         setfenv(f1, _G)
@@ -470,4 +485,3 @@ function process(index)
 
     __end()
 end
-
