@@ -358,18 +358,6 @@ function setcookie(name, value, expire, path, domain, secure, httponly)
     header(cookie)
 end
 
-_file_exists = file_exists
-function file_exists(f)
-    if not f then return nil end
-    local _f = __root..f
-    local exists = FileExistsCache[_f]
-    if exists == nil then
-        exists = _file_exists(f)
-        FileExistsCache[_f] = exists
-    end
-    return exists
-end
-
 _loadstring = loadstring
 function loadstring(s,c)
     local f,e = _loadstring(s,c)

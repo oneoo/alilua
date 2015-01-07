@@ -30,7 +30,7 @@ static int is_match(const char *rule, const char *uri)
     static regex_t *re = NULL;
     static regmatch_t pm[100];
     int m = strlen(rule);
-    char *nr = malloc(m * 2 + 10);
+    char *nr = ((m * 2 + 10 < 8192) ? (char *)temp_buf : malloc(m * 2 + 10));
     int i = 0, gk = 0, nr_len = 0, fck = 0;
 
     v_p_count2 = 1;
@@ -93,7 +93,6 @@ static int is_match(const char *rule, const char *uri)
     }
 
     nr[nr_len] = '\0';
-    //printf("== %s  %s [%d]\n", nr, uri, v_p_count2);
 
     if((fck > 1 && strncmp(uri, nr + 1, fck) != 0)) {
         return 0;
@@ -120,7 +119,10 @@ static int is_match(const char *rule, const char *uri)
                 regfree(re);
             }
 
-            free(nr);
+            if(nr != (char *)temp_buf) {
+                free(nr);
+            }
+
             return 0;
         }
 
@@ -161,7 +163,6 @@ static int is_match(const char *rule, const char *uri)
                     }
 
                     v_c[g][pm[g].rm_eo - pm[g].rm_so] = '\0';
-                    //printf("M: %d %d %s  %d\n", pm[g].rm_so, g, v_c[g], v_p_len[g]);
 
                 } else {
                     v_c[g] = NULL;
@@ -172,14 +173,16 @@ static int is_match(const char *rule, const char *uri)
             g = 0;
         }
 
-    } else {
-        // char msgbuf[100];
-        // regerror(reti, &re, msgbuf, sizeof(msgbuf));
-        // fprintf(stderr, "Regex match failed: %s\n", msgbuf);
-    }
+    }/*else {
 
-    //regfree(&re);
-    free(nr);
+        char msgbuf[100];
+        regerror(reti, &re, msgbuf, sizeof(msgbuf));
+        fprintf(stderr, "Regex match failed: %s\n", msgbuf);
+    }*/
+
+    if(nr != (char *)temp_buf) {
+        free(nr);
+    }
 
     return g;
 }
@@ -292,7 +295,6 @@ int lua_f_router(lua_State *L)
 
     while(lua_next(L, -2)) {
         if(lua_isstring(L, -2)) {
-            //printf("== %s\n", lua_tostring(L, -2));
             if(is_match(lua_tostring(L, -2), uri)) {
                 the_match_pat = pat;
             }
@@ -306,6 +308,8 @@ int lua_f_router(lua_State *L)
         }
     }
 
+    lua_pop(L, 1);
+
     pat = 0;
     lua_pushvalue(L, 2);
     lua_pushnil(L);
@@ -313,7 +317,6 @@ int lua_f_router(lua_State *L)
     while(lua_next(L, -2)) {
         if(lua_isstring(L, -2)) {
             if(match_max > 0 && pat == the_match_pat) {
-                //printf("== %s\n", lua_tostring(L, -2));
                 lua_pushvalue(L, -1);
                 lua_pop(L, 1);
 
@@ -329,7 +332,7 @@ int lua_f_router(lua_State *L)
                     lua_pushstring(L, v_c[i]);
                     free(v_c[i]);
                     v_c[i] = NULL;
-                    lua_settable(L, -3); /* 3rd element from the stack top */
+                    lua_settable(L, -3);
                 }
 
                 return 2;
@@ -343,6 +346,8 @@ int lua_f_router(lua_State *L)
             break;
         }
     }
+
+    lua_pop(L, 1);
 
     return 0;
 }

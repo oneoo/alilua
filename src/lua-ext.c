@@ -798,15 +798,12 @@ int lua_f_file_exists(lua_State *L)
 
     size_t len = 0;
     const char *fname = lua_tolstring(L, 1, &len);
-    //char *full_fname = malloc(epd->vhost_root_len + len);
     char *full_fname = (char *)&temp_buf;
     memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
     memcpy(full_fname + epd->vhost_root_len, fname, len);
     full_fname[epd->vhost_root_len + len] = '\0';
 
-    lua_pushboolean(L, access(full_fname, F_OK) != -1);
-
-    //free(full_fname);
+    lua_pushboolean(L, cached_access(fnv1a_32(full_fname, epd->vhost_root_len + len), full_fname) != -1);
 
     return 1;
 }
@@ -829,7 +826,6 @@ int lua_f_readfile(lua_State *L)
 
     size_t len = 0;
     const char *fname = lua_tolstring(L, 1, &len);
-    //char *full_fname = malloc(epd->vhost_root_len + len);
     char *full_fname = (char *)&temp_buf;
     memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
     memcpy(full_fname + epd->vhost_root_len , fname, len);
@@ -838,9 +834,6 @@ int lua_f_readfile(lua_State *L)
     char *buf = NULL;
     off_t reads = 0;
     int fd = open(full_fname, O_RDONLY, 0);
-
-    //printf("readfile: %s\n", full_fname);
-    //free(full_fname);
 
     if(fd > -1) {
         reads = lseek(fd, 0L, SEEK_END);

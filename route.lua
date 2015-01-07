@@ -1,5 +1,5 @@
 local routes = {}
-routes['^/(.*).(jpg|gif|png|css|js|ico|swf|flv|mp3|mp4|woff|eot|ttf|otf|svg)'] = function()
+routes['^/(.*).(jpg|gif|png|css|js|ico|swf|flv|mp3|mp4|woff|eot|ttf|otf|svg)$'] = function()
     header('Cache-Control: max-age=864000')
     sendfile(headers.uri)
 end
