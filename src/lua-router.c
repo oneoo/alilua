@@ -318,7 +318,10 @@ int lua_f_router(lua_State *L)
         if(lua_isstring(L, -2)) {
             if(match_max > 0 && pat == the_match_pat) {
                 lua_pushvalue(L, -1);
-                lua_pop(L, 1);
+
+                lua_remove(L, -2);
+                lua_remove(L, -2);
+                lua_remove(L, -2);
 
                 lua_createtable(L, 0, match_max);
                 int i = 0;

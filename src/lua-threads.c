@@ -77,7 +77,7 @@ void reinit_lua_thread_env(lua_State *L)
     gk_key_t *gk = key->gk, *bf = NULL;
     key->gk = NULL;
 
-    lua_settop(L, lua_gettop(L));
+    lua_settop(L, 0);
 
     lua_getglobal(L, "_G");
 
