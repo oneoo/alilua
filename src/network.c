@@ -377,7 +377,7 @@ void network_end_process(epdata_t *epd, int response_code)
                                   epd->user_agent ? epd->user_agent : "-",
                                   (float)(ttime - epd->start_time) / 1000);
 
-    if(epd->L) {
+    if(epd->L && !epd->websocket) {
         reinit_lua_thread_env(epd->L);
     }
 

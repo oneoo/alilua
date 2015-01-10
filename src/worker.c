@@ -641,8 +641,8 @@ void worker_main(int _worker_n)
     if(getarg("thread")) {
         thread_count = atoi(getarg("thread"));
 
-        if(thread_count < 100) {
-            thread_count = 100;
+        if(thread_count < 10) {
+            thread_count = 10;
 
         } else if(thread_count > 10000) {
             thread_count = 10000;

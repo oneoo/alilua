@@ -163,6 +163,7 @@ int websocket_be_read(se_ptr_t *ptr)
             if(frame_opcode == WS_OPCODE_CLOSE) {
                 ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
                 epd->websocket->ended = 1;
+                epd->keepalive = 0;
 
                 return 1;
             }
@@ -453,6 +454,19 @@ int lua_f_check_websocket_close(lua_State *L)
     }
 
     if(epd->websocket->ended) {
+        se_delete(epd->se_ptr);
+        epd->se_ptr = NULL;
+        delete_timeout(epd->timeout_ptr);
+        epd->timeout_ptr = NULL;
+
+        if(epd->fd > -1) {
+            serv_status.active_counts--;
+            close(epd->fd);
+            epd->fd = -1;
+        }
+
+        release_lua_thread(L);
+
         lua_pushboolean(L, 1);
         return 1;
     }
