@@ -465,6 +465,8 @@ int lua_f_check_websocket_close(lua_State *L)
             epd->fd = -1;
         }
 
+        free(epd->websocket);
+
         release_lua_thread(L);
 
         lua_pushboolean(L, 1);
@@ -484,6 +486,8 @@ int lua_f_check_websocket_close(lua_State *L)
             close(epd->fd);
             epd->fd = -1;
         }
+
+        free(epd->websocket);
 
         lua_pushboolean(L, 1);
         return 1;
