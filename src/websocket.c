@@ -31,21 +31,10 @@ int websocket_be_read(se_ptr_t *ptr)
         epd->headers = malloc(4096);
 
         if(epd->headers == NULL) {
-            epd->status = STEP_FINISH;
-            //network_send_error ( epd, 503, "memory error!" );
-            //close_client(epd);
-            se_delete(epd->se_ptr);
-            epd->se_ptr = NULL;
-            delete_timeout(epd->timeout_ptr);
-            epd->timeout_ptr = NULL;
+            ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
+            epd->websocket->ended = 1;
+            epd->keepalive = 0;
 
-            if(epd->fd > -1) {
-                serv_status.active_counts--;
-                close(epd->fd);
-                epd->fd = -1;
-            }
-
-            //serv_status.reading_counts--;
             return 0;
         }
 
@@ -58,19 +47,9 @@ int websocket_be_read(se_ptr_t *ptr)
             epd->headers = _t;
 
         } else {
-            //close_client(epd);
-            se_delete(epd->se_ptr);
-            epd->se_ptr = NULL;
-            delete_timeout(epd->timeout_ptr);
-            epd->timeout_ptr = NULL;
-
-            if(epd->fd > -1) {
-                serv_status.active_counts--;
-                close(epd->fd);
-                epd->fd = -1;
-            }
-
+            ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
             epd->websocket->ended = 1;
+            epd->keepalive = 0;
 
             return 0;
         }
@@ -81,18 +60,9 @@ int websocket_be_read(se_ptr_t *ptr)
     while((n = recv(epd->fd, epd->headers + epd->data_len,
                     epd->buf_size - epd->data_len, 0)) >= 0) {
         if(n == 0) {
-            //close_client(epd);
-            //epd = NULL;
-            se_delete(epd->se_ptr);
-            epd->se_ptr = NULL;
-            delete_timeout(epd->timeout_ptr);
-            epd->timeout_ptr = NULL;
-
-            if(epd->fd > -1) {
-                serv_status.active_counts--;
-                close(epd->fd);
-                epd->fd = -1;
-            }
+            ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
+            epd->websocket->ended = 1;
+            epd->keepalive = 0;
 
             break;
         }
@@ -104,19 +74,9 @@ int websocket_be_read(se_ptr_t *ptr)
                 epd->headers = _t;
 
             } else {
-                //network_send_error ( epd, 503, "buf error!" );
-                //close_client(epd);
-                //epd = NULL;
-                se_delete(epd->se_ptr);
-                epd->se_ptr = NULL;
-                delete_timeout(epd->timeout_ptr);
-                epd->timeout_ptr = NULL;
-
-                if(epd->fd > -1) {
-                    serv_status.active_counts--;
-                    close(epd->fd);
-                    epd->fd = -1;
-                }
+                ws_send_data(epd, 1, 0, 0, 0, WS_OPCODE_CLOSE, 0, NULL);
+                epd->websocket->ended = 1;
+                epd->keepalive = 0;
 
                 break;
             }
@@ -203,6 +163,7 @@ int websocket_be_read(se_ptr_t *ptr)
                 epd->contents[payload_length - 1] = k;
 
                 lua_State *L = epd->L;
+
                 lua_getglobal(L, "__websocket_on__");
 
                 if(lua_isfunction(L, -1)) {
@@ -213,8 +174,9 @@ int websocket_be_read(se_ptr_t *ptr)
                     if(lua_pcall(L, 3, 0, 0)) {
                         if(lua_isstring(L, -1)) {
                             LOGF(ERR, "%s", lua_tostring(L, -1));
-                            lua_pop(L, 1);
                         }
+
+                        lua_pop(L, 1);
                     }
                 }
 
@@ -461,6 +423,13 @@ int lua_f_check_websocket_close(lua_State *L)
         delete_timeout(epd->timeout_ptr);
         epd->timeout_ptr = NULL;
 
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+
+        } else if(epd->status == STEP_SEND) {
+            serv_status.sending_counts--;
+        }
+
         if(epd->fd > -1) {
             serv_status.active_counts--;
             close(epd->fd);
@@ -483,6 +452,13 @@ int lua_f_check_websocket_close(lua_State *L)
         epd->se_ptr = NULL;
         delete_timeout(epd->timeout_ptr);
         epd->timeout_ptr = NULL;
+
+        if(epd->status == STEP_READ) {
+            serv_status.reading_counts--;
+
+        } else if(epd->status == STEP_SEND) {
+            serv_status.sending_counts--;
+        }
 
         if(epd->fd > -1) {
             serv_status.active_counts--;

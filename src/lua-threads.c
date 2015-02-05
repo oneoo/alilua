@@ -79,19 +79,19 @@ void reinit_lua_thread_env(lua_State *L)
 
     lua_settop(L, 0);
 
-    lua_getglobal(L, "_G");
+    lua_thread_inited = 0;
 
     while(gk) {
-        lua_pushstring(L, gk->k);
         lua_pushnil(L);
-        lua_rawset(L, -3);
+        lua_setglobal(L, gk->k);
 
         bf = gk;
         gk = gk->next;
         free(bf);
     }
 
-    lua_pop(L, 1);
+    lua_thread_inited = 1;
+
 }
 
 void release_lua_thread(lua_State *L)

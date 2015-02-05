@@ -166,12 +166,15 @@ function websocket_accept(loop, on)
                 "Sec-WebSocket-Accept: "..base64_encode(sha1bin(headers['sec-websocket-key']..'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'))
                 })
 
-        upgrade_to_websocket(function(data, typ) newthread(function() on(data, typ) end) end)
+        upgrade_to_websocket(on)
 
-        while 1 do pcall(loop) if check_websocket_close() then break end end
+        newthread(function()
+            while 1 do pcall(loop) if check_websocket_close() then break end end
+        end)
 
     end
 end
+
 --[[
 if not debug.traceback then debug.traceback=function() return '' end end
 function print_error(e,h)

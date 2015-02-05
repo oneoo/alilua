@@ -4,7 +4,7 @@ function on(data,frame_opcode,is_multi_frame)
 end
 
 function loop()
-    websocket_send('text ' .. time())
+    websocket_send('Now: ' .. time())
     sleep(1000)
 end
 

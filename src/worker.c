@@ -341,7 +341,6 @@ int worker_process(epdata_t *epd, int thread_at)
         int qlen = strlen(epd->query) - 1;
 
         t1 = (char *)strsplit(epd->query + 1, qlen, "&", &last, &plen);
-        char kk[256] = {0};
 
         while(t1) {
             char *last2 = NULL;
@@ -352,9 +351,9 @@ int worker_process(epdata_t *epd, int thread_at)
             t3 = (char *)strsplit(t1, plen, "=", &last2, &plen3);
 
             if(t2 && plen2 > 0 && plen3 > 0 && plen2 <= 4096 && plen3 <= 4096) {
-                size_t dlen;
-                u_char *p;
-                u_char *src, *dst;
+                size_t dlen = 0;
+                u_char *p = 0;
+                u_char *src = NULL, *dst = NULL;
 
                 p = (u_char *)&buf_4096;
                 p[0] = '\0';
@@ -383,31 +382,34 @@ int worker_process(epdata_t *epd, int thread_at)
             t2 = strtok_r(t1, "=", &t1);
             t3 = strtok_r(t1, "=", &t1);
 
-            if(t2 && t3 && strlen(t2) > 0 && strlen(t3) > 0) {
-                size_t len, dlen;
-                u_char *p;
-                u_char *src, *dst;
-                len = strlen(t3);
-                p = malloc(len);
-                p[0] = '\0';
-                dst = p;
-                dlen = urldecode(&dst, (u_char **)&t3, len, RAW_UNESCAPE_URL);
-                lua_pushlstring(L, (char *) p, dlen);
+            if(t2 && t3) {
+                size_t t2_len = strlen(t2), t3_len = strlen(t3);
 
-                len = strlen(t2);
+                if(t2_len > 0 && t3_len > 0) {
+                    size_t dlen = 0, mlen = (t3_len > t2_len ? t3_len : t2_len);
+                    u_char *p = (u_char *)&buf_4096;
+                    u_char *src = NULL, *dst = NULL;
 
-                if(len > 4096) {
-                    free(p);
-                    p = malloc(len);
+                    if(mlen > 4096) {
+                        p = malloc(mlen);
+                    }
+
+                    p[0] = '\0';
+                    dst = p;
+                    dlen = urldecode(&dst, (u_char **)&t3, t3_len, RAW_UNESCAPE_URL);
+                    lua_pushlstring(L, (char *) p, dlen);
+
+                    p[0] = '\0';
+                    dst = p;
+
+                    dlen = urldecode(&dst, (u_char **)&t2, t2_len, RAW_UNESCAPE_URL);
+                    p[dlen] = '\0';
+                    lua_setfield(L, -2, p + (p[0] == ' ' ? 1 : 0));
+
+                    if(mlen > 4096) {
+                        free(p);
+                    }
                 }
-
-                p[0] = '\0';
-                dst = p;
-
-                dlen = urldecode(&dst, (u_char **)&t2, len, RAW_UNESCAPE_URL);
-                p[dlen] = '\0';
-                lua_setfield(L, -2, p + (p[0] == ' ' ? 1 : 0));
-                free(p);
             }
         }
     }

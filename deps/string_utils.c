@@ -12,9 +12,10 @@
 #include "lauxlib.h"
 
 #include "../coevent/merry/common/urlcoder.h"
+#include "../coevent/merry/common/strings.h"
 
 #ifndef RELEASE
-#  define RELEASE "0.1"
+#define RELEASE "0.1"
 #endif
 
 #define large_malloc(s) (malloc(((int)(s/4096)+1)*4096))
@@ -360,46 +361,6 @@ static int lua_f_escape(lua_State *L)
     return 1;
 }
 
-static char *stristr(const char *str, const char *pat, int length)
-{
-    if(!str || !pat) {
-        return (NULL);
-    }
-
-    if(length < 1) {
-        length = strlen(str);
-    }
-
-    int pat_len = strlen(pat);
-
-    if(length < pat_len) {
-        return NULL;
-    }
-
-    int i = 0;
-
-    for(i = 0; i < length; i++) {
-        if(toupper(str[i]) == toupper(pat[0]) && (length - i) >= pat_len
-           && toupper(str[i + pat_len - 1]) == toupper(pat[pat_len - 1])) {
-            int j = i;
-
-            for(; j < i + pat_len; j++) {
-                if(toupper(str[j]) != toupper(pat[j - i])) {
-                    break;
-                }
-            }
-
-            if(j < i + pat_len) {
-                continue;
-            }
-
-            return (char *) str + i;
-        }
-    }
-
-    return (NULL);
-}
-
 static int lua_f_startsWith(lua_State *L)
 {
     int nargs = lua_gettop(L);
@@ -495,12 +456,12 @@ int lua_f_explode(lua_State *L)
     char *last = NULL;
     int tok_len = 0;
 
-    tok = (char *)strsplit(src, l, pat, &last, &tok_len);
+    tok = strsplit(src, (int)l, pat, &last, &tok_len);
 
     while(tok) {
         lua_pushlstring(L, tok , tok_len);
         lua_rawseti(L, -2, i++);
-        tok = (char *)strsplit(src, l, pat, &last, &tok_len);
+        tok = strsplit(src, (int)l, pat, &last, &tok_len);
     }
 
     return 1;
