@@ -534,6 +534,10 @@ int lua_end(lua_State *L)
     }
 
     if(epd->websocket || epd->status == STEP_SEND) {
+        if(epd->websocket) {
+            epd->websocket->ended = 1;
+        }
+
         return 0;
     }
 
@@ -549,15 +553,19 @@ int lua_die(lua_State *L)
         return 0;
     }
 
+    if(epd->websocket || epd->status == STEP_SEND) {
+        if(epd->websocket) {
+            epd->websocket->ended = 1;
+        }
+
+        return 0;
+    }
+
     int nargs = lua_gettop(L);
 
     _lua_echo(epd, L, nargs, 0);
 
     if(epd->status != STEP_PROCESS) {
-        return 0;
-    }
-
-    if(epd->websocket || epd->status == STEP_SEND) {
         return 0;
     }
 
