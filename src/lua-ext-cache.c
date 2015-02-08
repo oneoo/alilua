@@ -1,11 +1,12 @@
 #include "main.h"
 #include "lua-ext-cache.h"
 
+static unsigned char digest[32] = {0};
+static char md5chars[32 + 16] = {0};
+
 int lua_f_cache_set(lua_State *L)
 {
     int nargs = lua_gettop(L);
-    unsigned char digest[32];
-    char md5chars[32 + 16];
 
     if(!lua_isstring(L, 1) || nargs < 2) {
         lua_pushboolean(L, 0);
@@ -62,9 +63,6 @@ int lua_f_cache_get(lua_State *L)
         lua_pushboolean(L, 0);
         return 1;
     }
-
-    unsigned char digest[32];
-    char md5chars[32 + 16];
 
     size_t klen = 0;
     size_t vlen = 0;
@@ -124,9 +122,6 @@ int lua_f_cache_del(lua_State *L)
         lua_pushboolean(L, 0);
         return 1;
     }
-
-    unsigned char digest[32];
-    char md5chars[32 + 16];
 
     size_t klen = 0;
     const char *key = lua_tolstring(L, 1, &klen);
