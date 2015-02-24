@@ -1,7 +1,7 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-#define ALILUA_VERSION "v0.49"
+#define ALILUA_VERSION "v0.50"
 #define default_port 19827
 
 #define USE_KEEPALIVE 1
