@@ -416,10 +416,10 @@ end
 _loadtemplate = loadtemplate
 function loadtemplate(f)
     local _f = __root..f
-    local f1,e = CodeCache[_f]
+    local f1,e = __CodeCache[_f]
     if not f1 then
         f1,e = _loadtemplate(f)
-        CodeCache[_f] = f1
+        __CodeCache[_f] = f1
     end
 
     if f1 then
