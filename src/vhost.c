@@ -10,6 +10,8 @@ int max_request_body = 0;
 int code_cache_ttl = 60; // set 0 to disable code cache
 int auto_reload_vhost_router = 0;
 char *temp_path = NULL;
+const char *lua_path = NULL;
+const char *lua_cpath = NULL;
 
 static void timeout_handle(void *ptr)
 {
@@ -140,6 +142,9 @@ int update_vhost_routes(char *f)
             update_timeout_ptr = add_timeout(NULL, auto_reload_vhost_router, timeout_handle);
         }
     }
+
+    lua_path = get_string_in_table(L, "lua-path", &tl);
+    lua_cpath = get_string_in_table(L, "lua-cpath", &tl);
 
     lua_pop(L, 1);
 

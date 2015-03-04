@@ -26,6 +26,7 @@ logf_t *ACCESS_LOG = NULL;
 static char tbuf_4096[4096] = {0};
 
 extern int code_cache_ttl;
+extern char process_chdir[924];
 
 static void on_master_exit_handler()
 {
@@ -201,7 +202,7 @@ int main(int argc, const char **argv)
     lua_pop(_L, 1);
 
     sprintf(tbuf_4096,
-            "package.path = '%s/lua-libs/?.lua;' .. package.path package.cpath = '%s/lua-libs/?.so;' .. package.cpath", cwd, cwd);
+            "package.path = '%slua-libs/?.lua;' .. package.path package.cpath = '%slua-libs/?.so;' .. package.cpath", cwd, cwd);
     luaL_dostring(_L, tbuf_4096);
 
     luaL_dostring(_L, ""
