@@ -361,6 +361,31 @@ function setcookie(name, value, expire, path, domain, secure, httponly)
     header(cookie)
 end
 
+function jsonrpc_handle(data, apis)
+    header('Content-Type:text/javascript')
+    if data and data.method then
+        local v = '1.0'
+        if data.method:find('.', 1, true) then
+            v = '2.0'
+        end
+        if not data.jsonrpc then data.jsonrpc = v end
+        local method = explode(data.method, '.')
+        if apis[method[1]] and (v == '1.0' or apis[method[1]][method[2]]) then
+            print(json_encode(
+                    {
+                    jsonrpc = data.jsonrpc,
+                    result = (v == '1.0' and apis[method[1]] or apis[method[1]][method[2]])(unpack(data.params)),
+                    error = null
+                    }
+                ))
+        else
+            print(json_encode({jsonrpc = data.jsonrpc,result = null,error = "method not exists!"}))
+        end
+    else
+        print(json_encode({jsonrpc = v,result = null,error = "Agreement Error!"}))
+    end
+end
+
 _loadstring = loadstring
 function loadstring(s,c)
     local f,e = _loadstring(s,c)
@@ -416,10 +441,10 @@ end
 _loadtemplate = loadtemplate
 function loadtemplate(f)
     local _f = __root..f
-    local f1,e = CodeCache[_f]
+    local f1,e = __CodeCache[_f]
     if not f1 then
         f1,e = _loadtemplate(f)
-        CodeCache[_f] = f1
+        __CodeCache[_f] = f1
     end
 
     if f1 then
