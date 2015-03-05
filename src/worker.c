@@ -17,6 +17,9 @@ extern int ssl_epd_idx;
 
 extern logf_t *ACCESS_LOG;
 
+extern const char *lua_path;
+extern char process_chdir[924];
+
 static int exited = 0;
 static void on_exit_handler()
 {
@@ -422,7 +425,7 @@ int worker_process(epdata_t *epd, int thread_at)
     epd->vhost_root = get_vhost_root(epd->host, &epd->vhost_root_len);
 
     memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len + 1);
-    sprintf(buf_4096 + epd->vhost_root_len + 1, "?.lua;%s/lua-libs/?.lua;", process_chdir);
+    sprintf(buf_4096 + epd->vhost_root_len + 1, "?.lua;%s/lua-libs/?.lua;%s", process_chdir, lua_path);
 
     lua_pushstring(L, buf_4096);
     lua_getglobal(L, "package");
@@ -443,7 +446,7 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_routed = 0;
 
-    if(lua_resume(L, 1) == LUA_ERRRUN) {
+    if(lua_f_lua_uthread_resume_in_c(L, 1) == LUA_ERRRUN) {
         if(lua_isstring(L, -1)) {
             LOGF(ERR, "Lua:error %s", lua_tostring(L, -1));
             network_send_error(epd, 503, lua_tostring(L, -1));

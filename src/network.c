@@ -5,6 +5,7 @@
 #include "worker.h"
 #include "cached-ntoa.h"
 
+#define BUFFER_SIZE 4096
 static char temp_buf[8192];
 static char temp_buf64k[61440];
 
@@ -809,7 +810,7 @@ int network_be_read(se_ptr_t *ptr)
     update_timeout(epd->timeout_ptr, STEP_READ_TIMEOUT);
 
     if(epd->headers == NULL) {
-        epd->headers = malloc(4096);
+        epd->headers = malloc(BUFFER_SIZE);
 
         if(epd->headers == NULL) {
             LOGF(ERR, "malloc error");
@@ -817,12 +818,12 @@ int network_be_read(se_ptr_t *ptr)
             return 0;
         }
 
-        epd->buf_size = 4096;
+        epd->buf_size = BUFFER_SIZE;
         epd->start_time = longtime();
 
     } else if(epd->data_len == epd->buf_size) {
         {
-            char *_t = (char *) realloc(epd->headers, epd->buf_size + 4096);
+            char *_t = (char *) realloc(epd->headers, epd->buf_size + BUFFER_SIZE);
 
             if(_t != NULL) {
                 epd->headers = _t;
@@ -833,7 +834,7 @@ int network_be_read(se_ptr_t *ptr)
                 return 0;
             }
 
-            epd->buf_size += 4096;
+            epd->buf_size += BUFFER_SIZE;
         }
     }
 
@@ -856,7 +857,7 @@ int network_be_read(se_ptr_t *ptr)
         }
 
         if(epd->data_len + n >= epd->buf_size) {
-            char *_t = (char *) realloc(epd->headers, epd->buf_size + 4096);
+            char *_t = (char *) realloc(epd->headers, epd->buf_size + BUFFER_SIZE);
 
             if(_t != NULL) {
                 epd->headers = _t;
@@ -867,7 +868,7 @@ int network_be_read(se_ptr_t *ptr)
                 return 0;
             }
 
-            epd->buf_size += 4096;
+            epd->buf_size += BUFFER_SIZE;
         }
 
         if(epd->status != STEP_READ) {
