@@ -15,6 +15,7 @@ int lua_f_get_boundary(lua_State *L);
 int lua_f_random_string(lua_State *L);
 int lua_f_file_exists(lua_State *L);
 int lua_f_readfile(lua_State *L);
+int lua_f_filemtime(lua_State *L);
 
 int lua_f_router(lua_State *L);
 int lua_f_package_require(lua_State *L);

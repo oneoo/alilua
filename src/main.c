@@ -188,6 +188,7 @@ int main(int argc, const char **argv)
     lua_register(_L, "random_string", lua_f_random_string);
     lua_register(_L, "file_exists", lua_f_file_exists);
     lua_register(_L, "readfile", lua_f_readfile);
+    lua_register(_L, "filemtime", lua_f_filemtime);
 
     lua_register(_L, "cache_set", lua_f_cache_set);
     lua_register(_L, "cache_get", lua_f_cache_get);

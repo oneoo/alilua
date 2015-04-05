@@ -7,6 +7,7 @@ loadtemplate = require('loadtemplate')
 httpclient = (require "httpclient").httprequest
 llmdb = require('llmdb-client')
 cmsgpack = require('cmsgpack')
+ok, cmsgpack_safe = pcall(require, 'cmsgpack.safe')
 
 md5 = function(s) return crypto.evp.digest('md5', s) end
 function string:trim() return self:gsub('^%s*(.-)%s*$', '%1') end
@@ -122,10 +123,11 @@ local _cache_set = cache_set
 local _cache_get = cache_get
 local _cache_del = cache_del
 function cache_set(k, v, ttl)
+    if not k or not v then return end
     local t = type(v)
     if t == 'table' then
         t = 4
-        v = fastlz_compress(json_encode(v))
+        v = fastlz_compress(cmsgpack_safe.pack(v))
     elseif t == 'boolean' then
         t = 3
         v = tostring(v)
@@ -134,7 +136,9 @@ function cache_set(k, v, ttl)
         v = tostring(v)
     else
         t = 1
-        v = fastlz_compress(v)
+        if #v > 0 then
+            v = fastlz_compress(v)
+        end
     end
 
     return _cache_set(k, t..v, ttl)
@@ -142,13 +146,13 @@ end
 function cache_get(k)
     local t,v = _cache_get(k)
     if t == 4 then
-        t = json_decode(fastlz_decompress(v))
+        t = cmsgpack_safe.unpack(fastlz_decompress(v))
     elseif t == 3 then
         t = (v == 'true' and true or false)
     elseif t == 2 then
         t = tonumber(v)
     else
-        t = fastlz_decompress(v)
+        t = #v > 0 and fastlz_decompress(v) or v
     end
     return t
 end
@@ -404,13 +408,13 @@ function loadfile(f)
     local p2 = ((math_floor(time()/CODE_CACHE_TTL)+1)%2)+1
     local f1,e = CODE_CACHE_TTL > 0 and __CodeCache[p1][_f] or nil
     if CODE_CACHE_TTL > 0 and __CodeCacheC[p2] then
-        __CodeCache[p2] = {}
-        __CodeCacheC[p2] = false
+        --__CodeCache[p2] = {}
+        --__CodeCacheC[p2] = false
     end
     if not f1 then
         f1,e = readfile(f)
         if f1 then
-            f1,e = loadstring(f1, f)
+            f1,e = _loadstring(f1, f)
             if f1 then
                 setfenv(f1, _G)
             end
@@ -418,6 +422,39 @@ function loadfile(f)
             if CODE_CACHE_TTL > 0 then
                 __CodeCache[p1][_f] = f1
                 __CodeCacheC[p1] = true
+            end
+        end
+    else
+        setfenv(f1, _G)
+    end
+
+    return f1, e
+end
+
+__CodeCache = {{},{}}
+function loadfile(f)
+    if not f then return nil end
+    local _f = __root..f
+    local n = time()
+    local f1,e = CODE_CACHE_TTL > 0 and __CodeCache[1][_f] or nil
+    if CODE_CACHE_TTL > 0 and __CodeCache[2][_f] and n - __CodeCache[2][_f][1] > CODE_CACHE_TTL then
+        if filemtime(f) > __CodeCache[2][_f][2] then
+            f1 = nil
+        else
+            __CodeCache[2][_f][1] = n
+        end
+    end
+    if not f1 then
+        f1,e = readfile(f)
+        if f1 then
+            f1,e = _loadstring(f1, f)
+            if f1 then
+                setfenv(f1, _G)
+            end
+
+            if CODE_CACHE_TTL > 0 then
+                __CodeCache[1][_f] = f1
+                __CodeCache[2][_f] = {n, filemtime(f)}
             end
         end
     else
@@ -440,11 +477,24 @@ end
 
 _loadtemplate = loadtemplate
 function loadtemplate(f)
+    local n = time()
     local _f = __root..f
-    local f1,e = __CodeCache[_f]
+    local f1,e = CODE_CACHE_TTL > 0 and  __CodeCache[1][_f] or nil
+    if CODE_CACHE_TTL > 0 and __CodeCache[2][_f] and n - __CodeCache[2][_f][1] > CODE_CACHE_TTL then
+        if filemtime(f) > __CodeCache[2][_f][2] then
+            f1 = nil
+        else
+            __CodeCache[2][_f][1] = n
+        end
+    end
+
     if not f1 then
         f1,e = _loadtemplate(f)
-        __CodeCache[_f] = f1
+
+        if CODE_CACHE_TTL > 0 then
+            __CodeCache[1][_f] = f1
+            __CodeCache[2][_f] = {n, filemtime(f)}
+        end
     end
 
     if f1 then

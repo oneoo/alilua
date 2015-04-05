@@ -52,6 +52,12 @@ int lua_f_cache_set(lua_State *L)
         }
     }
 
+    if(vlen > 1024101) {
+        lua_pushnil(L);
+        lua_pushstring(L, "MAX object size <= 102400");
+        return 2;
+    }
+
     lua_pushboolean(L, yac_storage_update(key, klen, value, vlen, 1, ttl, 0, now));
 
     return 1;
@@ -93,22 +99,27 @@ int lua_f_cache_get(lua_State *L)
 
     if(yac_storage_find(key, klen, &value, &vlen, &flag, (int *) 0, now)) {
         if(value) {
-            int t = 1;
+            if(vlen > 0) {
+                int t = 1;
 
-            if(value[0] == '4') {
-                t = 4;
+                if(value[0] == '4') {
+                    t = 4;
 
-            } else if(value[0] == '3') {
-                t = 3;
+                } else if(value[0] == '3') {
+                    t = 3;
 
-            } else if(value[0] == '2') {
-                t = 2;
+                } else if(value[0] == '2') {
+                    t = 2;
+                }
+
+                lua_pushnumber(L, t);    /// push type
+                lua_pushlstring(L, value + 1, vlen - 1);    /// push content
+                yac_free(value);
+                return 2;
+
+            } else {
+                yac_free(value);
             }
-
-            lua_pushnumber(L, t);    /// push type
-            lua_pushlstring(L, value + 1, vlen - 1);    /// push content
-            yac_free(value);
-            return 2;
         }
     }
 

@@ -872,3 +872,38 @@ int lua_f_readfile(lua_State *L)
 
     return 2;
 }
+
+int lua_f_filemtime(lua_State *L)
+{
+    epdata_t *epd = get_epd(L);
+
+    if(!epd) {
+        lua_pushnil(L);
+        lua_pushstring(L, "miss epd!");
+        return 2;
+    }
+
+    if(!lua_isstring(L, -1)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Need a file path!");
+        return 2;
+    }
+
+    size_t len = 0;
+    const char *fname = lua_tolstring(L, 1, &len);
+    char *full_fname = (char *)&temp_buf;
+    memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
+    memcpy(full_fname + epd->vhost_root_len , fname, len);
+    full_fname[epd->vhost_root_len + len] = '\0';
+
+    struct stat fst;
+
+    if(stat(full_fname, &fst) < 0) {
+        lua_pushnil(L);
+        lua_pushstring(L, strerror(errno));
+        return 2;
+    }
+
+    lua_pushnumber(L, fst.st_mtime);
+    return 1;
+}
