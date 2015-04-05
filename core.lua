@@ -152,7 +152,7 @@ function cache_get(k)
     elseif t == 2 then
         t = tonumber(v)
     else
-        t = #v > 0 and fastlz_decompress(v) or v
+        t = (v and #v > 0) and fastlz_decompress(v) or v
     end
     return t
 end
