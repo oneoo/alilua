@@ -431,7 +431,6 @@ function loadfile(f)
     return f1, e
 end
 
-__CodeCache = {{},{}}
 function loadfile(f)
     if not f then return nil end
     local _f = __root..f
