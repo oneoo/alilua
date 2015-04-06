@@ -203,9 +203,11 @@ int worker_process(epdata_t *epd, int thread_at)
     int is_form_post = 0;
     char *cookies = NULL;
     pt1 = epd->headers;
-    if(pt1[0] == '\0'){
-        pt1 = pt1+1;
+
+    if(pt1[0] == '\0') {
+        pt1 = pt1 + 1;
     }
+
     int i = 0;
 
     epd->uri = NULL;
@@ -332,6 +334,7 @@ int worker_process(epdata_t *epd, int thread_at)
     if(init_tables == 0) {
         lua_createtable(L, 0, 20); //headers
     }
+
     const char *client_ip = cached_ntoa(epd->client_addr);
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
