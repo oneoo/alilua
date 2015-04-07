@@ -227,7 +227,8 @@ int worker_process(epdata_t *epd, int thread_at)
             epd->http_ver = strtok_r(t1, " ", &t1);
 
             if(!epd->http_ver) {
-                return 1;
+                network_send_error(epd, 400, "Bad Request");
+                return 0;
 
             } else {
                 if(init_tables == 0) {
@@ -332,7 +333,8 @@ int worker_process(epdata_t *epd, int thread_at)
     }
 
     if(init_tables == 0) {
-        lua_createtable(L, 0, 20); //headers
+        network_send_error(epd, 400, "Bad Request");
+        return 0;
     }
 
     const char *client_ip = cached_ntoa(epd->client_addr);
