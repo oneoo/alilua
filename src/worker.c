@@ -340,10 +340,7 @@ int worker_process(epdata_t *epd, int thread_at)
     const char *client_ip = cached_ntoa(epd->client_addr);
     lua_pushstring(L, client_ip);
     lua_setfield(L, -2, "remote-addr");
-    int l = sizeof(struct sockaddr);
-    struct sockaddr_in addr;
-    getsockname(epd->fd, (struct sockaddr *) &addr, &l);
-    lua_pushstring(L, cached_ntoa(addr.sin_addr));
+    lua_pushstring(L, cached_ntoa(epd->server_addr));
     lua_setfield(L, -2, "server-addr");
 
     lua_setglobal(L, "headers");
@@ -431,9 +428,6 @@ int worker_process(epdata_t *epd, int thread_at)
 
     lua_setglobal(L, "_COOKIE");
 
-    lua_pushnil(L);
-    lua_setglobal(L, "__body_buf");
-
     epd->vhost_root = get_vhost_root(epd->host, &epd->vhost_root_len);
 
     memcpy(buf_4096, epd->vhost_root, epd->vhost_root_len + 1);
@@ -475,6 +469,8 @@ int worker_process(epdata_t *epd, int thread_at)
 
 static void be_accept(int client_fd, struct in_addr client_addr)
 {
+    int sockaddr_len = sizeof(struct sockaddr);
+    struct sockaddr_in addr;
     /* Disable the Nagle (TCP No Delay) algorithm */
     int flag = 1;
     int ret = setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
@@ -506,6 +502,8 @@ static void be_accept(int client_fd, struct in_addr client_addr)
 
     epd->fd = client_fd;
     epd->client_addr = client_addr;
+    getsockname(epd->fd, (struct sockaddr *) &addr, &sockaddr_len);
+    epd->server_addr = addr.sin_addr;
     epd->status = STEP_WAIT;
     epd->content_length = -1;
     epd->keepalive = -1;
