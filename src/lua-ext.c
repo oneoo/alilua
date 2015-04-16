@@ -298,6 +298,8 @@ int lua_print_error(lua_State *L)
         return 2;
     }
 
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
     lua_Debug ar;
     lua_getstack(L, 1, &ar);
     lua_getinfo(L, "nSl", &ar);
