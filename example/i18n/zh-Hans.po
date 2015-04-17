@@ -1,0 +1,41 @@
+# Test strings
+# /usr/local/opt/gettext/bin/msgfmt zh-Hans.po -o zh-Hans.mo
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2014-08-04 15:32-0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: zh-Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#, c-format
+msgid "Hello"
+msgstr "你好"
+
+#, c-format
+msgid "The {0} was {1}"
+msgstr "{0}是{1}"
+
+#, c-format
+msgid "story_0"
+msgstr ""
+"你好，这是\n"
+"一个很长的字符串\n" 
+"如果你明白我的意思"
+
+#, c-format
+msgctxt "Menu"
+msgid "File"
+msgstr "文件"
+
+#, c-format
+msgid "%d user likes this."
+msgid_plural "%d users like this."
+msgstr[0] "%d 用户喜欢这个."

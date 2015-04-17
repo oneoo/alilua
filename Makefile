@@ -52,6 +52,7 @@ main.o:
 	cd objs/deps && $(CC) -fPIC -c ../../deps/*.c $(DEBUG) $(INCLUDES);
 	cd objs/deps && $(CC) -fPIC -c ../../deps/yac/*.c $(DEBUG) $(INCLUDES);
 	cd objs/deps && $(CC) -fPIC -c ../../deps/fastlz/*.c $(DEBUG) $(INCLUDES);
+	cd objs/deps && $(CC) -fPIC -c ../../deps/i18n/*.c $(DEBUG) $(INCLUDES);
 
 	[ -f lua-libs/bit.so ] || (cd coevent/lua-libs/LuaBitOp-1.0.2 && make LIBLUA="$(LIBLUA)" && cp bit.so ../../../lua-libs/ && make clean);
 	[ -f lua-libs/cjson.so ] || (cd coevent/lua-libs/lua-cjson-2.1.0 && make LIBLUA="$(LIBLUA)" && cp cjson.so ../../../lua-libs/ && make clean);

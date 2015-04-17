@@ -1,0 +1,42 @@
+# Test strings
+# /usr/local/opt/gettext/bin/msgfmt es.po -o es.mo
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2014-08-04 15:32-0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#, c-format
+msgid "Hello"
+msgstr "Hola"
+
+#, c-format
+msgid "The {0} was {1}"
+msgstr "El {0} {1} era"
+
+#, c-format
+msgid "story_0"
+msgstr ""
+"hola, este es\n"
+"una muy larga cadena\n" 
+"Si sabes a lo que me refiero"
+
+#, c-format
+msgctxt "Menu"
+msgid "File"
+msgstr "Archivo"
+
+#, c-format
+msgid "%d user likes this."
+msgid_plural "%d users like this."
+msgstr[0] "%d usuario le gusta esto."
+msgstr[1] "%d usuarios les gusta esto."

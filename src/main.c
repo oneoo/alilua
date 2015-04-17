@@ -198,6 +198,7 @@ int main(int argc, const char **argv)
     luaopen_coevent(_L);
     luaopen_libfs(_L);
     luaopen_string_utils(_L);
+    luaopen_i18n(_L);
     luaopen_crypto(_L);
 
     lua_pop(_L, 1);
