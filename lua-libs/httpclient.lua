@@ -351,7 +351,6 @@ function httprequest(url, params)
 		i = 1
 		while not err do
 			bodys[i] = buf
-			--print(buf)
 			i = i+1
 			
 			body_length = body_length+#buf
@@ -375,6 +374,19 @@ function httprequest(url, params)
 		if body_length < get_body_length then
 			rterr = 'body length < '..get_body_length
 		end
+	else
+		local buf,err = sock:receive('*l')
+		local i = 1
+		while not err do
+			bodys[i] = buf
+			i = i + 1
+
+			buf,err = sock:receive('*l')
+		end
+
+		if err then
+			sock:close()
+		end
 	end
 	
 	if params.pool_size and sock then
@@ -390,14 +402,24 @@ function httprequest(url, params)
 			bodys[1] = char(120,156) .. bodys[1]
 		end
 
+		if #bodys < 1024 then bodys = {concat(bodys)} end
 		i = 1
 		local maxi = #bodys
-		local stream = zlib.inflate(function()
+		local stream,err = zlib.inflate(function()
 				i=i+1
 				if i > maxi+1 then return nil end
 				return bodys[i-1]
 		end)
-		bodys = stream:read('*a')
+
+		if err then
+			return nil, err
+		end
+
+		bodys,err = stream:read('*a')
+
+		if err then
+			return nil, err
+		end
 		stream:close()
 	end
 	

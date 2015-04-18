@@ -513,18 +513,22 @@ function dotemplate(f, ir)
 end
 
 _router = router
-function router(u,t,p)
-    local f,p = _router(u,t,p)
+function router(u,t,_p)
+    local f,p = _router(u,t,_p)
     if f then
         f(p)
         return true
     elseif p then
-        local r,e = dofile(p)
-        if e then
-            header('HTTP/1.1 503 Server Error')
-            header('Content-Type: text/html; charset=UTF-8')
-            print_error(e)
-            die()
+        local e = nil
+        if on_start then e = on_start() end
+        if not e then
+            local r,e = dofile(_p..p)
+            if e then
+                header('HTTP/1.1 503 Server Error')
+                header('Content-Type: text/html; charset=UTF-8')
+                print_error(e)
+                die()
+            end
         end
 
         return true

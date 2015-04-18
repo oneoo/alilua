@@ -631,7 +631,8 @@ static int lua_f_i18n_load_mofile(lua_State *L)
 
     if(mo_node) {
         if(mo_node->mos) {
-            if(code_cache_ttl > 0) {
+            //if(code_cache_ttl > 0)
+            {
                 mos = mo_node->mos;
 
                 while(mos) {
