@@ -365,8 +365,19 @@ function setcookie(name, value, expire, path, domain, secure, httponly)
     header(cookie)
 end
 
-function jsonrpc_handle(data, apis)
+function jsonrpc_handle(apis)
     header('Content-Type:text/javascript')
+    local bs = {}
+    local i = 1
+    local b,c = read_request_body()
+    while b do
+        bs[i] = b
+        i = i + 1
+        b,c = read_request_body()
+    end
+
+    local data = json_decode(table.concat(bs))
+
     if data and data.method then
         local v = '1.0'
         if data.method:find('.', 1, true) then

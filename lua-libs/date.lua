@@ -5,7 +5,7 @@
 -- Copyright (C) 2006, by Jas Latrix (jastejada@yahoo.com)
 -- Copyright (C) 2013-2014, by Thijs Schreijer
 -- Licensed under MIT, http://opensource.org/licenses/MIT
-
+local print=print
 --[[ CONSTANTS ]]--
   local HOURPERDAY  = 24
   local MINPERHOUR  = 60

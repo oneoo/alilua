@@ -1,16 +1,26 @@
 local routes = {}
 routes['^/(.*).(jpg|gif|png|css|js|ico|swf|flv|mp3|mp4|woff|eot|ttf|otf|svg)$'] = function()
     header('Cache-Control: max-age=864000')
-    sendfile(headers.uri)
+    if headers.uri:find('.js',1,1) or headers.uri:find('.css',1,1) then -- cloud be gzip
+        local mtime = filemtime(headers.uri)
+        if headers['if-none-match'] and tonumber(headers['if-none-match']) == mtime then
+            header('HTTP/1.1 304 Not Modified')
+        else
+            header('Etag: '..mtime)
+            echo(readfile(headers.uri))
+        end
+    else
+        sendfile(headers.uri)
+    end
 end
 
 routes['^/user/:user_id'] = function(r)
-    print('User ID: ', r.user_id)
+    echo('User ID: ', r.user_id)
 end
 
 routes['^/user/:user_id/:post(.+)'] = function(r)
-    print('User ID: ', r.user_id)
-    print(' Post: ', r.post)
+    echo('User ID: ', r.user_id)
+    echo(' Post: ', r.post)
 end
 
 routes['^/(.*)'] = function(r)
