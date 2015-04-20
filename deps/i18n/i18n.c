@@ -8,7 +8,7 @@ static char buf[4096] = {0};
 static const char *default_key = "*all";
 extern int code_cache_ttl;
 static const char *__i18n_locale = NULL;
-static int __i18n_locale_len = 0;
+static size_t __i18n_locale_len = 0;
 
 typedef struct {
     ok_mo *mo;
@@ -33,7 +33,7 @@ static rb_key_t *get_mo_tree_node(const char *c_key)
 {
     rb_key_t *key = NULL, _key;
     rb_tree_node_t *tnode = NULL;
-    _key.key = c_key;
+    _key.key = (char*)c_key;
 
     if(rb_tree_find(&mo_tree, &_key, &tnode) == RB_OK) {
         key = (rb_key_t *)((char *)tnode + sizeof(rb_tree_node_t));

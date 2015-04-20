@@ -67,7 +67,8 @@ static void decode_mo2(mo_decoder *decoder);
 static void ok_mo_cleanup(ok_mo *mo) {
     if (mo) {
         if (mo->strings) {
-            for (uint32_t i = 0; i < mo->num_strings; i++) {
+            uint32_t i = 0;
+            for (i = 0; i < mo->num_strings; i++) {
                 free(mo->strings[i].key);
                 free(mo->strings[i].value);
             }
@@ -236,7 +237,8 @@ static void decode_mo2(mo_decoder *decoder) {
     
     // Read keys
     // Assumes keys are sorted, per the spec.
-    for (uint32_t i = 0; i < mo->num_strings; i++) {
+    uint32_t i = 0;
+    for (i = 0; i < mo->num_strings; i++) {
         uint32_t length = read32(decoder->key_offset_buffer + 8 * i, little_endian);
         uint32_t offset = read32(decoder->key_offset_buffer + 8 * i + 4, little_endian);
         
@@ -255,7 +257,7 @@ static void decode_mo2(mo_decoder *decoder) {
     }
     
     // Read values
-    for (uint32_t i = 0; i < mo->num_strings; i++) {
+    for (i = 0; i < mo->num_strings; i++) {
         uint32_t length = read32(decoder->value_offset_buffer + 8 * i, little_endian);
         uint32_t offset = read32(decoder->value_offset_buffer + 8 * i + 4, little_endian);
         
@@ -342,7 +344,8 @@ const char *ok_mo_plural_value_in_context(ok_mo *mo, const char *context, const 
         // This is probably too simple for some languages
         const int plural_index = get_plural_index(s->num_plural_variants, n);
         const char *v = s->value;
-        for (int i = 0; i < plural_index; i++) {
+        int i = 0;
+        for (i = 0; i < plural_index; i++) {
             while (*v++ != 0) { }
         }
         return v;
@@ -380,7 +383,8 @@ unsigned int ok_utf8_strlen(const char *utf8) {
                 skip = 3;
             }
             // Sanity check: check for malformed string
-            for (int i = 0; i < skip; i++) {
+            int i = 0;
+            for (i = 0; i < skip; i++) {
                 in++;
                 if (*in < 128) {
                     break;
