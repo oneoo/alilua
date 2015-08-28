@@ -54,7 +54,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         segments_num >>= 1;
     }
     segment_size = v_size / segments_num;
-    allocate_size = YAC_SMM_SEGMENT_MAX_SIZE;
+    allocate_size = (YAC_SMM_SEGMENT_MAX_SIZE < k_size + v_size ? YAC_SMM_SEGMENT_MAX_SIZE : k_size + v_size);
 
     while ((shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags)) < 0) {
         allocate_size >>= 1;
