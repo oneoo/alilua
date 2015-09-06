@@ -3,4 +3,4 @@
 	url = https://github.com/oneoo/alilua-coevent-module
 [submodule "luajit"]
 	path = luajit
-	url = https://github.com/agentzh/luajit2.git
+	url = https://github.com/openresty/luajit2.git
