@@ -15,6 +15,10 @@ typedef struct {
     uint32_t sended;
 } websocket_pt;
 
+#define IS_READ_TIMEOUT 1
+#define IS_WRITE_TIMEOUT 2
+#define IS_PROCESS_TIMEOUT 3
+
 typedef struct _epdata_t {
     void *se_ptr;
     void *timeout_ptr;
@@ -53,6 +57,7 @@ typedef struct _epdata_t {
 
     int keepalive;
     int process_timeout;
+    int timeout_type;
 
     int response_sendfile_fd;
 
@@ -76,7 +81,7 @@ typedef struct _epdata_t {
 
     int ssl_verify;
 
-    char z[4]; /// align size to 4096
+    //char z[4]; /// align size to 4096
 } epdata_t;
 
 typedef struct {

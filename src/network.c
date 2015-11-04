@@ -570,7 +570,7 @@ static char *network_build_header_out(epdata_t *epd, int is_flush, int *_len)
 int network_be_read_on_clear(se_ptr_t *ptr);
 void network_be_end(epdata_t *epd) // for lua function die
 {
-    if(epd->content_length > epd->data_len - epd->_header_length && epd->fd > -1) {
+    if(epd->fd > -1 && epd->timeout_type != IS_READ_TIMEOUT && epd->content_length > epd->data_len - epd->_header_length) {
         if(epd->status != STEP_READ) {
             epd->status = STEP_READ;
             serv_status.reading_counts++;

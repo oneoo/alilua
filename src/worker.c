@@ -145,6 +145,7 @@ static void timeout_handle(void *ptr)
         epd->keepalive = 0;
         //LOGF(ERR, "Read Timeout!");
         epd->status = STEP_PROCESS;
+        epd->timeout_type = IS_READ_TIMEOUT;
         network_send_error(epd, 400, "Timeout!");
         return;
 
@@ -508,6 +509,7 @@ static void be_accept(int client_fd, struct in_addr client_addr)
     epd->content_length = -1;
     epd->keepalive = -1;
     epd->response_sendfile_fd = -1;
+    epd->timeout_type = 0;
     //epd->start_time = longtime();
 
     epd->se_ptr = se_add(loop_fd, client_fd, epd);
