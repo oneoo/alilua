@@ -686,6 +686,8 @@ static int network_be_read_request_body(se_ptr_t *ptr)
 
         lua_f_lua_uthread_resume_in_c(epd->L, 1);
 
+        return 0;
+
     } else if(n == 0) {
         n = -1;
         errno = 1;

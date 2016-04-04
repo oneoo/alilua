@@ -1244,6 +1244,8 @@ int network_be_write(se_ptr_t *ptr)
 
                         lua_f_lua_uthread_resume_in_c(epd->L, 1);
 
+                        return 0;
+
                     }
 
                     break;
@@ -1383,6 +1385,8 @@ int network_be_write(se_ptr_t *ptr)
                     }
 
                     lua_f_lua_uthread_resume_in_c(epd->L, 2);
+
+                    return 0;
 
                 }
 

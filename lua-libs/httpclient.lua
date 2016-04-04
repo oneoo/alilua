@@ -185,7 +185,15 @@ function httprequest(url, params)
 		elseif is_multipart then
 			insert(request_headers, 'Content-Type: multipart/form-data; boundary='..boundary)
 		end
-		insert(request_headers, 'Content-Length: '..#contents+send_file_length_sum)
+
+		if type(contents) == 'string' then
+			insert(request_headers, 'Content-Length: '..#contents+send_file_length_sum)
+		else
+			contents:seek('set', 0)
+			local content_length = contents:seek('end')
+			insert(request_headers, 'Content-Length: '..content_length)
+			contents:seek('set', 0)
+		end
 	end
 	
 	--send request
@@ -198,10 +206,26 @@ function httprequest(url, params)
 
 	if send_file_length_sum == 0 then
 		if contents then
-			bytes, err = sock:send(contents)
-			if err then
-				sock:close()
-				return nil, err
+			if type(contents) == 'string' then
+				bytes, err = sock:send(contents)
+				if err then
+					sock:close()
+					return nil, err
+				end
+			else
+				local buf = contents:read(40960)
+				while buf do
+					bytes, err = sock:send(buf)
+
+					if err then
+						contents:close()
+						sock:close()
+						return nil, err
+					end
+
+					buf = contents:read(40960)
+				end
+				contents:close()
 			end
 		end
 	else
@@ -236,7 +260,7 @@ function httprequest(url, params)
 					return nil, err
 				end
 				if t~='string' then
-					local buf = v.file:read(4096)
+					local buf = v.file:read(40960)
 					while buf do
 						bytes, err = sock:send(buf)
 
@@ -247,7 +271,7 @@ function httprequest(url, params)
 							return nil, err
 						end
 
-						buf = v.file:read(4096)
+						buf = v.file:read(40960)
 					end
 					v.file:close()
 					v.file = nil
@@ -323,7 +347,7 @@ function httprequest(url, params)
 			
 			while read_length > 0 do
 				local rl = read_length
-				if rl > 4096 then rl = 4096 end
+				if rl > 40960 then rl = 40960 end
 				read_length = read_length - rl
 				buf,err = sock:receive(rl)
 				if buf then
@@ -343,7 +367,7 @@ function httprequest(url, params)
 		end
 		if err then rterr = err end
 	elseif get_body_length > 0 then
-		local buf,err = sock:receive(get_body_length < 4096 and get_body_length or 4096)
+		local buf,err = sock:receive(get_body_length < 40960 and get_body_length or 40960)
 		if err then
 			sock:close()
 			return nil, err
@@ -358,7 +382,7 @@ function httprequest(url, params)
 				break
 			end
 
-			buf,err = sock:receive(get_body_length-body_length < 4096 and get_body_length-body_length or 4096)
+			buf,err = sock:receive(get_body_length-body_length < 40960 and get_body_length-body_length or 40960)
 			
 			if err then
 				sock:close()
@@ -418,6 +442,7 @@ function httprequest(url, params)
 		bodys,err = stream:read('*a')
 
 		if err then
+			stream:close()
 			return nil, err
 		end
 		stream:close()
