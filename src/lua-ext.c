@@ -680,7 +680,9 @@ static int network_be_read_request_body(se_ptr_t *ptr)
             epd->status = STEP_PROCESS;
         }
 
-        se_be_pri(epd->se_ptr, NULL); // be wait
+        if(epd->se_ptr){
+            se_be_pri(epd->se_ptr, NULL); // be wait
+        }
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
 
