@@ -615,8 +615,8 @@ static int network_be_read_request_body(se_ptr_t *ptr)
     }
 
     int n = 0, readed = 0;
-    char *buf = malloc(65536);
-    int buf_size = 65536;
+    char *buf = malloc(8192);
+    int buf_size = 8192;
 
     if(!buf) {
         serv_status.active_counts--;
@@ -662,11 +662,17 @@ static int network_be_read_request_body(se_ptr_t *ptr)
 
         //printf("readed: %d\n", n);
         if(readed >= buf_size) {
-            char *p = realloc(buf, buf_size + 65536);
+            int ns = buf_size + 65536;
+
+            if(buf_size < 65536) {
+                ns = 65536;
+            }
+
+            char *p = realloc(buf, ns);
 
             if(p) {
                 buf = p;
-                buf_size += 65536;
+                buf_size = ns;
 
             } else {
                 break;
@@ -680,11 +686,13 @@ static int network_be_read_request_body(se_ptr_t *ptr)
             epd->status = STEP_PROCESS;
         }
 
-        if(epd->se_ptr){
+        if(epd->se_ptr) {
             se_be_pri(epd->se_ptr, NULL); // be wait
         }
+
         lua_pushlstring(epd->L, buf, readed);
         free(buf);
+        buf = NULL;
 
         lua_f_lua_uthread_resume_in_c(epd->L, 1);
 
@@ -695,8 +703,21 @@ static int network_be_read_request_body(se_ptr_t *ptr)
         errno = 1;
     }
 
+    free(buf);
+    buf = NULL;
+
     if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         serv_status.active_counts--;
+
+        if(epd->ssl) {
+            if(!SSL_shutdown(epd->ssl)) {
+                shutdown(epd->fd, 1);
+                SSL_shutdown(epd->ssl);
+            }
+
+            SSL_free(epd->ssl);
+            epd->ssl = NULL;
+        }
 
         se_delete(epd->se_ptr);
         epd->se_ptr = NULL;
@@ -842,8 +863,13 @@ int lua_f_readfile(lua_State *L)
     const char *fname = lua_tolstring(L, 1, &len);
     char *full_fname = (char *)&temp_buf;
     memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
-    memcpy(full_fname + epd->vhost_root_len , fname, len);
-    full_fname[epd->vhost_root_len + len] = '\0';
+    int a = 0;
+    if(epd->vhost_root[epd->vhost_root_len-1] != '/' && fname[0] != '/'){
+        full_fname[epd->vhost_root_len] = '/';
+        a = 1;
+    }
+    memcpy(full_fname + epd->vhost_root_len + a , fname, len);
+    full_fname[epd->vhost_root_len + len + a] = '\0';
 
     char *buf = NULL;
     off_t reads = 0;

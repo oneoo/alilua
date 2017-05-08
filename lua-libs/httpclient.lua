@@ -95,6 +95,7 @@ function httprequest(url, params)
 			end
 		end
 	end
+	params.method = params.method:upper()
 	if not uri or uri =='' then uri = '/' end
 	
 	-- connect to server
@@ -304,7 +305,7 @@ function httprequest(url, params)
 			if #line > #te then
 				if _line == te and line:find('chunked') then
 					is_chunked = true
-				elseif _line == cl then
+				elseif _line == cl and params.method ~= 'HEAD' then
 					get_body_length = tonumber(line:sub(line:find(':')+1, #line))
 				end
 			end
