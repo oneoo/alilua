@@ -165,6 +165,21 @@ static void timeout_handle(void *ptr)
     close_client(epd);
 }
 
+void lua_create_new_globals_table(lua_State *L, int narr, int nrec)
+{
+    lua_createtable(L, narr, nrec + 1);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "_G");
+}
+void lua_get_globals_table(lua_State *L)
+{
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+}
+void lua_set_globals_table(lua_State *L)
+{
+    lua_replace(L, LUA_GLOBALSINDEX);
+}
+
 int worker_process(epdata_t *epd, int thread_at)
 {
     //printf("worker_process\n");
@@ -180,6 +195,7 @@ int worker_process(epdata_t *epd, int thread_at)
     lua_State *L = epd->L;
 
     if(!L) {
+        int base = lua_gettop(_L);
         epd->L = new_lua_thread(_L);
 
         if(!epd->L) {
@@ -187,6 +203,14 @@ int worker_process(epdata_t *epd, int thread_at)
             LOGF(ERR, "Lua Error: Thread pool full !!!");
             return 0;
         }
+
+        lua_create_new_globals_table(epd->L, 0, 0);
+        lua_createtable(epd->L, 0, 1);
+        lua_get_globals_table(epd->L);
+        lua_setfield(epd->L, -2, "__index");
+        lua_setmetatable(epd->L, -2);
+        lua_set_globals_table(epd->L);
+        lua_settop(_L, base);
 
         lua_pushlightuserdata(epd->L, epd);
         lua_setglobal(epd->L, "__epd__");
