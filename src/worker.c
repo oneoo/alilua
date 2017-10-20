@@ -83,7 +83,7 @@ void free_epd(epdata_t *epd)
 
     int i = 0;
 
-    for(i = 0; i < epd->iov_buf_count && i < _MAX_IOV_COUNT; i++) {
+    for(i = 0; i < _MAX_IOV_COUNT; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
     }
@@ -203,7 +203,7 @@ int worker_process(epdata_t *epd, int thread_at)
             LOGF(ERR, "Lua Error: Thread pool full !!!");
             return 0;
         }
-
+/*
         lua_create_new_globals_table(epd->L, 0, 0);
         lua_createtable(epd->L, 0, 1);
         lua_get_globals_table(epd->L);
@@ -211,7 +211,7 @@ int worker_process(epdata_t *epd, int thread_at)
         lua_setmetatable(epd->L, -2);
         lua_set_globals_table(epd->L);
         lua_settop(_L, base);
-
+*/
         lua_pushlightuserdata(epd->L, epd);
         lua_setglobal(epd->L, "__epd__");
 

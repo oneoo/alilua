@@ -214,7 +214,7 @@ void free_epd_request(epdata_t *epd) /// for keepalive
 
     int i = 0;
 
-    for(i = 0; i < epd->iov_buf_count; i++) {
+    for(i = 0; i < _MAX_IOV_COUNT; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
         epd->iov[i].iov_len = 0;
@@ -262,7 +262,7 @@ void network_end_process(epdata_t *epd, int response_code)
     free(epd->iov[0].iov_base);
     epd->iov[0].iov_base = NULL;
 
-    for(i = 1; i < epd->iov_buf_count; i++) {
+    for(i = 1; i < _MAX_IOV_COUNT; i++) {
         free(epd->iov[i].iov_base);
         epd->iov[i].iov_base = NULL;
         epd->iov[i].iov_len = 0;
@@ -1216,7 +1216,7 @@ int network_be_write(se_ptr_t *ptr)
                     } else {
                         int i = 0;
 
-                        for(i = 1; i < epd->iov_buf_count; i++) {
+                        for(i = 1; i < _MAX_IOV_COUNT; i++) {
                             free(epd->iov[i].iov_base);
                             epd->iov[i].iov_base = NULL;
                             epd->iov[i].iov_len = 0;
@@ -1357,7 +1357,7 @@ int network_be_write(se_ptr_t *ptr)
                 } else {
                     int i = 0;
 
-                    for(i = 1; i < epd->iov_buf_count; i++) {
+                    for(i = 1; i < _MAX_IOV_COUNT; i++) {
                         free(epd->iov[i].iov_base);
                         epd->iov[i].iov_base = NULL;
                         epd->iov[i].iov_len = 0;

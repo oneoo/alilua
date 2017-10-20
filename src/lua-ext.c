@@ -864,10 +864,12 @@ int lua_f_readfile(lua_State *L)
     char *full_fname = (char *)&temp_buf;
     memcpy(full_fname, epd->vhost_root, epd->vhost_root_len);
     int a = 0;
-    if(epd->vhost_root[epd->vhost_root_len-1] != '/' && fname[0] != '/'){
+
+    if(epd->vhost_root[epd->vhost_root_len - 1] != '/' && fname[0] != '/') {
         full_fname[epd->vhost_root_len] = '/';
         a = 1;
     }
+
     memcpy(full_fname + epd->vhost_root_len + a , fname, len);
     full_fname[epd->vhost_root_len + len + a] = '\0';
 

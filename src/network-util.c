@@ -231,7 +231,6 @@ void network_send_status(epdata_t *epd)
 static const char gzip_header[10] = {'\037', '\213', Z_DEFLATED, 0, 0, 0, 0, 0, 0, 0x03};
 int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int *_diov_count)
 {
-    char *buf = (char *)temp_buf;
     int ret = 0;
 
     if(!epd->zs) {
@@ -261,6 +260,15 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
     int flush = 0;
 
 //epd->zs_crc = 0L;
+    char *buf = malloc(EP_D_BUF_SIZE);
+
+    if(!buf) {
+        LOGF(ERR, "deflateInit error: no memory");
+        free(epd->zs);
+        epd->zs = NULL;
+        return 0;
+    }
+
     do {
         if(i >= _MAX_IOV_COUNT || !iov[i].iov_base) {
             break;
@@ -291,6 +299,7 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
                 deflateEnd(epd->zs);
                 free(epd->zs);
                 epd->zs = NULL;
+                free(buf);
                 LOGF(ERR, "Z_STREAM_ERROR | Z_MEM_ERROR");
                 return 0;
             }
@@ -324,6 +333,7 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
                             free(epd->zs);
                             epd->zs = NULL;
                             LOGF(ERR,  "gzip: iov buf count error!");
+                            free(buf);
                             return 0;
                         }
                     }
@@ -350,6 +360,7 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
                         free(epd->zs);
                         epd->zs = NULL;
                         LOGF(ERR,  "gzip: iov buf count error!");
+                        free(buf);
                         return 0;
                     }
                 }
@@ -358,6 +369,8 @@ int gzip_iov(epdata_t *epd, int is_flush, struct iovec *iov, int iov_count, int 
 
         /* done when last data in file processed */
     } while(flush != Z_FINISH);
+
+    free(buf);
 
     if(epd->header_sended == 0 || epd->header_sended == 2) {
         /* clean up and return */
